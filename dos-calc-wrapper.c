@@ -1,20 +1,18 @@
 #include "dos-calc-velocity-decomposition.c"
 #include "dos-calc-fft.c"
 
-//#define DEBUG
-
-#ifdef DEBUG
-#define DPRINT(...) do{ fprintf( stderr, __VA_ARGS__ ); } while( 0 )
-#else
-#define DPRINT(...)
-#endif
-
 //#define VERBOSE
-
 #ifdef VERBOSE
 #define VPRINT(...) do{ fprintf( stderr, __VA_ARGS__ ); } while( 0 )
 #else
 #define VPRINT(...)
+#endif
+
+//#define DEBUG
+#ifdef DEBUG
+#define DPRINT(...) do{ fprintf( stderr, __VA_ARGS__ ); } while( 0 )
+#else
+#define DPRINT(...)
 #endif
 
 #include <stdio.h>
