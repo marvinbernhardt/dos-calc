@@ -203,13 +203,13 @@ int main( int argc, char *argv[] )
         {
             int first_dof_vib = moltype_firstatom[h]*3;
             int last_dof_vib = moltype_firstatom[h]*3 + moltype_nmols[h]*moltype_natomtypes[h]*3;
-            printf("%d: %d %d\n", h, first_dof_vib, last_dof_vib);
+            VPRINT("%d: %d %d\n", h, first_dof_vib, last_dof_vib);
             for (int i=first_dof_vib; i<last_dof_vib; i++)
             {
                 for (int t=0; t<ntrajsteps; t++)
                 {
                     if (t!=0) fprintf(f, " ");
-                    fprintf(f, "%f", velocities_vib[i*ntrajsteps + t]);
+                    VPRINT(f, "%f", velocities_vib[i*ntrajsteps + t]);
                 }
                 fprintf(f, "\n");
             }
