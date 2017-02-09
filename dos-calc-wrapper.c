@@ -46,6 +46,7 @@ int main( int argc, char *argv[] )
     // input
     char traj_file_name[400];
     long ntrajsteps;
+    long nblocksteps;
     long nfftsteps;
     int natoms;
     int nmols;
@@ -60,7 +61,15 @@ int main( int argc, char *argv[] )
     // cut trailing newline of traj_file_name
     traj_file_name[strcspn(traj_file_name, "\r\n")] = 0;
     scanf("%ld", &ntrajsteps);
-    scanf("%ld", &nfftsteps);
+    scanf("%ld", &nblocksteps);
+
+    if (ntrajsteps % nblocksteps != 0)
+    {
+        printf("ntrajsteps is not a multiple of nblocksteps.\n");
+        return 1;
+    }
+    nfftsteps = nblocksteps / 2 + 1;
+
     scanf("%d", &natoms);
     scanf("%d", &nmols);
     scanf("%d", &nmoltypes);
