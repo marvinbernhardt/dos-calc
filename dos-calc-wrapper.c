@@ -2,6 +2,9 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <argp.h>
+#include <cblas.h>
+#include "gromacs/fileio/gmxfio.h"
+#include "gromacs/fileio/trrio.h"
 #include "dos-calc-velocity-decomposition.c"
 #include "dos-calc-fft.c"
 
@@ -140,6 +143,10 @@ int main( int argc, char *argv[] )
         scanf("%f", &atom_mass[j]);
     }
 
+    // open file
+    verbPrintf("starting with file %s\n", traj_file_name);
+    t_fileio* trj_in = gmx_trr_open(traj_file_name, "r");
+
     // output
     float* mol_moments_of_inertia = calloc(nmols*3, sizeof(float));
     float* moltype_dos_raw_trn = calloc(nmoltypes*nfftsteps, sizeof(float));
@@ -161,7 +168,7 @@ int main( int argc, char *argv[] )
         float* omegas_sqrt_i = calloc(nmols*3*nblocksteps, sizeof(float));
         float* velocities_vib = calloc(natoms*3*nblocksteps, sizeof(float));
 
-        result = decomposeVelocities (traj_file_name,
+        result = decomposeVelocities (trj_in,
                 nblocksteps,
                 natoms, 
                 nmols, 
@@ -252,9 +259,17 @@ int main( int argc, char *argv[] )
                 moltype_dos_raw_rot_b,
                 moltype_dos_raw_rot_c,
                 moltype_dos_raw_vib);
-
     } 
     DPRINT("finished all blocks\n");
+
+    // divide results by number of blocks
+    cblas_sscal(nmols*3, 1.0 / (float)nblocks, mol_moments_of_inertia, 1);
+    cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltype_dos_raw_trn, 1);
+    cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltype_dos_raw_rot, 1);
+    cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltype_dos_raw_rot_a, 1);
+    cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltype_dos_raw_rot_b, 1);
+    cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltype_dos_raw_rot_c, 1);
+    cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltype_dos_raw_vib, 1);
 
     f = fopen("moltype_dos_raw_trn.txt", "w");
     for (int h=0; h<nmoltypes; h++)

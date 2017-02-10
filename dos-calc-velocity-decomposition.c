@@ -24,7 +24,7 @@
 #define VPRINT(...)
 #endif
 
-int decomposeVelocities (char* traj_file_name,
+int decomposeVelocities (t_fileio* trj_in,
         long ntrajsteps,
         int natoms, 
         int nmols, 
@@ -50,7 +50,12 @@ int decomposeVelocities (char* traj_file_name,
 
     // read header
     gmx_trr_header_t header;
-    gmx_trr_read_single_header(traj_file_name, &header);
+    gmx_bool bOK;
+    gmx_trr_read_frame_header(trj_in, &header, &bOK);
+    if (!bOK) {
+        printf("trajectory header broken\n");
+        return 1;
+    }
 
     // for reading of frame
     long step;
@@ -61,8 +66,6 @@ int decomposeVelocities (char* traj_file_name,
     rvec* x = malloc(header.x_size * ntrajsteps);
     rvec* v = malloc(header.v_size * ntrajsteps);
 
-    VPRINT("starting with file %s\n", traj_file_name);
-    t_fileio* trj_in = gmx_trr_open(traj_file_name, "r");
     while(gmx_trr_read_frame(trj_in, &step, &time, &lambda, box, &header.natoms, x, v, NULL))
     {
         if ( t >= ntrajsteps )
