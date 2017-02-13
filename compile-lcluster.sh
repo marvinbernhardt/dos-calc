@@ -5,7 +5,7 @@ module load fftw/openmpi/3.3.5
 gcc dos-calc-wrapper.c \
     -Wall \
     -std=gnu99 \
-    -o $HOME/bin/dos-calc \
+    -o $HOME/bin/dos-calc-devel \
     -I $HOME/software/gromacs-2016.1/include \
     -L $GMXLDLIB \
     -L $HOME/software/lib \

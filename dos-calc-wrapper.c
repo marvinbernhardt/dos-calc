@@ -23,7 +23,7 @@ static char doc[] = "dos-calc -- a programm to calculate densities of states fro
 static struct argp argp = { 0, 0, 0, doc };
 
 // verbose print function
-int verbosity = 0;
+int verbosity = 1;
 
 void verbPrintf(const char *format, ...)
 {
@@ -160,8 +160,6 @@ int main( int argc, char *argv[] )
     for (int block=0; block<nblocks; block++)
     {
         verbPrintf("now doing block %d\n", block);
-
-
         DPRINT("start decomposition\n");
 
         float* mol_velocities_trn = calloc(nmols*3*nblocksteps, sizeof(float));
