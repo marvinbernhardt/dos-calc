@@ -1,12 +1,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <argp.h>
 #include <cblas.h>
 #include "gromacs/fileio/gmxfio.h"
 #include "gromacs/fileio/trrio.h"
 #include "dos-calc-velocity-decomposition.c"
 #include "dos-calc-fft.c"
+#include "verbPrintf.c"
 
 // uncomment next line for additional output
 //#define DEBUG
@@ -16,58 +18,100 @@
 #define DPRINT(...)
 #endif
 
-// argp stuff
-const char* argp_program_version = "dos-calc";
+// CLI stuff
+const char* argp_program_version = "dos-calc develop";
 const char* argp_program_bug_address = "<bernhardt@cpc.tu-darmstadt.de>";
 static char doc[] = "dos-calc -- a programm to calculate densities of states from trajectories";
-static struct argp argp = { 0, 0, 0, doc };
+static char args_doc[] = "";
+static struct argp_option options[] = {
+    {"dump",     'd', 0,      0,  "Dump velocities of first block" },
+    {"verbose",  'v', 0,      0,  "Produce verbose output" },
+    {"file",     'f', "FILE", 0,  "Input .trr trajectory file (default: traj.trr)"},
+    { 0 }
+};
 
-// verbose print function
-int verbosity = 0;
-
-void verbPrintf(const char *format, ...)
+struct arguments
 {
-    va_list args;
+    bool verbosity, dump_vel;
+    char *file;
+};
 
-    if (!verbosity)
-        return;
+static error_t parse_opt (int key, char *arg, struct argp_state *state)
+{
+    /* Get the input argument from argp_parse, which we
+       know is a pointer to our arguments structure. */
+    struct arguments *arguments = state->input;
 
-    va_start(args, format);
-    vfprintf (stdout, format, args);
-    va_end(args);
+    switch (key)
+    {
+        case 'd':
+            arguments->dump_vel = true;
+            break;
+        case 'v':
+            arguments->verbosity = true;
+            break;
+        case 'f':
+            arguments->file = arg;
+            break;
+
+        case ARGP_KEY_ARG:
+            if (state->arg_num >= 0)
+                /* Too many arguments. */
+                argp_usage (state);
+
+            break;
+
+        case ARGP_KEY_END:
+            if (state->arg_num < 0)
+                /* Not enough arguments. */
+                argp_usage (state);
+            break;
+
+        default:
+            return ARGP_ERR_UNKNOWN;
+    }
+    return 0;
 }
+
+/* Our argp parser. */
+static struct argp argp = {options, parse_opt, args_doc, doc};
 
 int main( int argc, char *argv[] )
 {
-    // command line stuff
-    int dump_vel = 0;
+    // command line arguments
+    struct arguments arguments;
 
-    argp_parse(&argp, argc, argv, 0, 0, 0);
+    // Default values.
+    arguments.dump_vel = false;
+    arguments.verbosity = false;
+    arguments.file = "traj.trr";
 
-    // input
-    char traj_file_name[400];
+    // parse command line arguments
+    argp_parse(&argp, argc, argv, 0, 0, &arguments);
+    bool verbosity = arguments.verbosity;
+
+    // input that will be scanned
     int nblocks;
     long nblocksteps;
-    long nfftsteps;
     int natoms;
     int nmols;
     int nmoltypes;
 
+    // file pointers for output
     FILE* f;
     FILE* fa;
     FILE* fb;
     FILE* fc;
 
+    // results of decomposeVelocities and DOSCalculation
     int result;
     int result2;
 
-    fgets(traj_file_name, 399, stdin);
-    // cut trailing newline of traj_file_name
-    traj_file_name[strcspn(traj_file_name, "\r\n")] = 0;
+    // start scanning
     scanf("%d", &nblocks);
     scanf("%ld", &nblocksteps);
 
-    nfftsteps = nblocksteps / 2 + 1;
+    int nfftsteps = nblocksteps / 2 + 1;
 
     scanf("%d", &natoms);
     scanf("%d", &nmols);
@@ -144,10 +188,10 @@ int main( int argc, char *argv[] )
     }
 
     // open file
-    verbPrintf("starting with file %s\n", traj_file_name);
-    t_fileio* trj_in = gmx_trr_open(traj_file_name, "r");
+    verbPrintf(verbosity, "starting with file %s\n", arguments.file);
+    t_fileio* trj_in = gmx_trr_open(arguments.file, "r");
 
-    // output
+    // output arrays
     float* mol_moments_of_inertia = calloc(nmols*3, sizeof(float));
     float* moltype_dos_raw_trn = calloc(nmoltypes*nfftsteps, sizeof(float));
     float* moltype_dos_raw_rot = calloc(nmoltypes*nfftsteps, sizeof(float));
@@ -156,13 +200,11 @@ int main( int argc, char *argv[] )
     float* moltype_dos_raw_rot_c = calloc(nmoltypes*nfftsteps, sizeof(float));
     float* moltype_dos_raw_vib = calloc(nmoltypes*nfftsteps, sizeof(float));
 
-    verbPrintf("going through %d blocks\n", nblocks);
+    verbPrintf(verbosity, "going through %d blocks\n", nblocks);
     for (int block=0; block<nblocks; block++)
     {
-        verbPrintf("now doing block %d\n", block);
-
-
-        DPRINT("start decomposition\n");
+        verbPrintf(verbosity, "now doing block %d\n", block);
+        verbPrintf(verbosity, "start decomposition\n");
 
         float* mol_velocities_trn = calloc(nmols*3*nblocksteps, sizeof(float));
         float* omegas_sqrt_i = calloc(nmols*3*nblocksteps, sizeof(float));
@@ -186,9 +228,9 @@ int main( int argc, char *argv[] )
                 mol_moments_of_inertia);
 
         // dump first block only!
-        if (dump_vel == 1 && block == 0)
+        if (arguments.dump_vel == 1 && block == 0)
         {
-            DPRINT("start dumping (first block only)\n");
+            verbPrintf(verbosity, "start dumping (first block only)\n");
             f = fopen("mol_omega_sqrt_i.txt", "w");
             for (int h=0; h<nmoltypes; h++)
             {
@@ -228,13 +270,11 @@ int main( int argc, char *argv[] )
             {
                 int first_dof_vib = moltype_firstatom[h]*3;
                 int last_dof_vib = moltype_firstatom[h]*3 + moltype_nmols[h]*moltype_natomtypes[h]*3;
-                VPRINT("%d: %d %d\n", h, first_dof_vib, last_dof_vib);
                 for (int i=first_dof_vib; i<last_dof_vib; i++)
                 {
                     for (int t=0; t<nblocksteps; t++)
                     {
                         if (t!=0) fprintf(f, " ");
-                        VPRINT(f, "%f", velocities_vib[i*nblocksteps + t]);
                     }
                     fprintf(f, "\n");
                 }
@@ -242,6 +282,7 @@ int main( int argc, char *argv[] )
             fclose(f);
         }
 
+        verbPrintf(verbosity, "start DoS calculation (FFT)\n");
         result2 = DOSCalculation (nmoltypes,
                 nblocksteps,
                 nfftsteps,
@@ -260,7 +301,7 @@ int main( int argc, char *argv[] )
                 moltype_dos_raw_rot_c,
                 moltype_dos_raw_vib);
     } 
-    DPRINT("finished all blocks\n");
+    verbPrintf(verbosity, "finished all blocks\n");
 
     // divide results by number of blocks
     cblas_sscal(nmols*3, 1.0 / (float)nblocks, mol_moments_of_inertia, 1);

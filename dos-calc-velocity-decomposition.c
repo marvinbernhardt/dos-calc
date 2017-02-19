@@ -9,19 +9,10 @@
 #include "linear-algebra.c"
 
 //#define DEBUG
-
 #ifdef DEBUG
 #define DPRINT(...) do{ fprintf( stderr, __VA_ARGS__ ); } while( 0 )
 #else
 #define DPRINT(...)
-#endif
-
-//#define VERBOSE
-
-#ifdef VERBOSE
-#define VPRINT(...) do{ fprintf( stderr, __VA_ARGS__ ); } while( 0 )
-#else
-#define VPRINT(...)
 #endif
 
 int decomposeVelocities (t_fileio* trj_in,
@@ -57,6 +48,9 @@ int decomposeVelocities (t_fileio* trj_in,
         return 1;
     }
 
+    // print header
+    DPRINT("time: %i\n", header.t);
+
     // for reading of frame
     long step;
     int t = 0;
@@ -77,7 +71,7 @@ int decomposeVelocities (t_fileio* trj_in,
         // loop over molecules
         for (int i=0; i<nmols; i++)
         {
-            VPRINT("\ndoing molecule %d\n", i);
+            DPRINT("\ndoing molecule %d\n", i);
             int m_firstatom = mol_firstatom[i];
             int m_natoms = mol_natoms[i];
             int m_moltype = mol_moltypenr[i];
@@ -88,7 +82,7 @@ int decomposeVelocities (t_fileio* trj_in,
             for (int j=0; j<m_natoms; j++)
             {
                 int jj = m_firstatom + j;
-                VPRINT("scanning atom %d (nr. %d in molecule)\n", jj, j);
+                DPRINT("scanning atom %d (nr. %d in molecule)\n", jj, j);
 
                 positions[3*j+0] = x[jj][0];
                 positions[3*j+1] = x[jj][1];
@@ -97,7 +91,7 @@ int decomposeVelocities (t_fileio* trj_in,
                 velocities[3*j+1] = v[jj][1];
                 velocities[3*j+2] = v[jj][2];
 
-                VPRINT("%8.3f%8.3f%8.3f%8.4f%8.4f%8.4f\n", 
+                DPRINT("%8.3f%8.3f%8.3f%8.4f%8.4f%8.4f\n", 
                         positions[3*j+0], positions[3*j+1], positions[3*j+2], 
                         velocities[3*j+0], velocities[3*j+1], velocities[3*j+2]);
             }
@@ -137,10 +131,10 @@ int decomposeVelocities (t_fileio* trj_in,
                 mol_velocity_trn[dim] /= m_mass;
 
                 // output array
-                VPRINT("going to output mol_vel_trn\n");
-                VPRINT("i=%d t=%d\n", i, t);
+                DPRINT("going to output mol_vel_trn\n");
+                DPRINT("i=%d t=%d\n", i, t);
                 mol_velocities_trn[3*ntrajsteps*i + ntrajsteps*dim + t] = mol_velocity_trn[dim];
-                VPRINT("finished output mol_vel_trn\n");
+                DPRINT("finished output mol_vel_trn\n");
 
                 center_of_mass[dim] = cblas_sdot(m_natoms,
                         &atom_mass[m_firstatom], 1,
@@ -148,11 +142,11 @@ int decomposeVelocities (t_fileio* trj_in,
                 center_of_mass[dim] /= m_mass;
             }
 
-            VPRINT("mol_velocities_trn: %8.4f%8.4f%8.4f\n", 
+            DPRINT("mol_velocities_trn: %8.4f%8.4f%8.4f\n", 
                     mol_velocity_trn[0],
                     mol_velocity_trn[1],
                     mol_velocity_trn[2]);
-            VPRINT("com: %8.4f%8.4f%8.4f\n", center_of_mass[0], center_of_mass[1], center_of_mass[2]);
+            DPRINT("com: %8.4f%8.4f%8.4f\n", center_of_mass[0], center_of_mass[1], center_of_mass[2]);
 
 
             // calc molecule atoms relative positions
@@ -163,7 +157,7 @@ int decomposeVelocities (t_fileio* trj_in,
                     positions_rel[3*j+dim] = positions[3*j+dim] - center_of_mass[dim];
                 }
 
-                VPRINT("pos_rel atom %d: %8.4f%8.4f%8.4f\n", j,
+                DPRINT("pos_rel atom %d: %8.4f%8.4f%8.4f\n", j,
                         positions_rel[3*j+0], positions_rel[3*j+1], positions_rel[3*j+2]);
 
             }
@@ -180,7 +174,7 @@ int decomposeVelocities (t_fileio* trj_in,
                 }
             }
 
-            VPRINT("angular momentum: %8.4f%8.4f%8.4f\n", 
+            DPRINT("angular momentum: %8.4f%8.4f%8.4f\n", 
                     angular_momentum[0], angular_momentum[1], angular_momentum[2]);
 
 
@@ -188,10 +182,10 @@ int decomposeVelocities (t_fileio* trj_in,
             float moi_tensor[9] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
             moiTensor(m_natoms, positions_rel, &atom_mass[m_firstatom], moi_tensor);
 
-            VPRINT("moi Tensor:\n");
-            VPRINT("%f %f %f\n", moi_tensor[0], moi_tensor[1], moi_tensor[2]);
-            VPRINT("%f %f %f\n", moi_tensor[3], moi_tensor[4], moi_tensor[5]);
-            VPRINT("%f %f %f\n", moi_tensor[6], moi_tensor[7], moi_tensor[8]);
+            DPRINT("moi Tensor:\n");
+            DPRINT("%f %f %f\n", moi_tensor[0], moi_tensor[1], moi_tensor[2]);
+            DPRINT("%f %f %f\n", moi_tensor[3], moi_tensor[4], moi_tensor[5]);
+            DPRINT("%f %f %f\n", moi_tensor[6], moi_tensor[7], moi_tensor[8]);
 
 
             // calc angular velocity
@@ -203,7 +197,7 @@ int decomposeVelocities (t_fileio* trj_in,
                     angular_momentum, 1, 
                     0.0, angular_velocity, 1);
 
-            VPRINT("angular velocity: %8.4f%8.4f%8.4f\n", 
+            DPRINT("angular velocity: %8.4f%8.4f%8.4f\n", 
                     angular_velocity[0], angular_velocity[1], angular_velocity[2]);
 
 
@@ -216,7 +210,7 @@ int decomposeVelocities (t_fileio* trj_in,
                     velocities_rot[3*j+dim] = cross_product[dim];
                 }
 
-                VPRINT("velocity_rot atom %d: %8.4f%8.4f%8.4f\n", j,
+                DPRINT("velocity_rot atom %d: %8.4f%8.4f%8.4f\n", j,
                         velocities_rot[3*j+0], velocities_rot[3*j+1], velocities_rot[3*j+2]);
 
             }
@@ -239,7 +233,7 @@ int decomposeVelocities (t_fileio* trj_in,
                     velocities_vib[3*ntrajsteps*atom + ntrajsteps*dim + t] = velocity_vib[dim];
                 }
 
-                VPRINT("velocity_vib atom %d: %8.4f%8.4f%8.4f\n", j,
+                DPRINT("velocity_vib atom %d: %8.4f%8.4f%8.4f\n", j,
                         velocity_vib[0], 
                         velocity_vib[1], 
                         velocity_vib[2]);
@@ -271,7 +265,7 @@ int decomposeVelocities (t_fileio* trj_in,
                 exit(1);
             }
 
-            VPRINT("moments of inertia: %8.4f%8.4f%8.4f\n", 
+            DPRINT("moments of inertia: %8.4f%8.4f%8.4f\n", 
                     moments_of_inertia[0], moments_of_inertia[1], moments_of_inertia[2]);
 
             // save moments of inertia for each molecule
@@ -280,10 +274,10 @@ int decomposeVelocities (t_fileio* trj_in,
                 mol_moments_of_inertia[3*i+dim] += moments_of_inertia[dim];
             }
 
-            VPRINT("eigenvectors (in columns):\n");
-            VPRINT("%f %f %f\n", eigenvectors[0], eigenvectors[1], eigenvectors[2]);
-            VPRINT("%f %f %f\n", eigenvectors[3], eigenvectors[4], eigenvectors[5]);
-            VPRINT("%f %f %f\n", eigenvectors[6], eigenvectors[7], eigenvectors[8]);
+            DPRINT("eigenvectors (in columns):\n");
+            DPRINT("%f %f %f\n", eigenvectors[0], eigenvectors[1], eigenvectors[2]);
+            DPRINT("%f %f %f\n", eigenvectors[3], eigenvectors[4], eigenvectors[5]);
+            DPRINT("%f %f %f\n", eigenvectors[6], eigenvectors[7], eigenvectors[8]);
 
             // abc auxilary vectors
             float a[3] = {0.0, 0.0, 0.0};
@@ -296,7 +290,7 @@ int decomposeVelocities (t_fileio* trj_in,
             // second number can be -1 for com 
             // c is always the cross product
 
-            VPRINT("abc indicators: (%d %d) (%d %d)\n", 
+            DPRINT("abc indicators: (%d %d) (%d %d)\n", 
                     m_abc_indicators[0], m_abc_indicators[1], m_abc_indicators[2], m_abc_indicators[3]);
 
             for (int dim=0; dim<3; dim++)
@@ -312,10 +306,10 @@ int decomposeVelocities (t_fileio* trj_in,
 
             crossProduct(a, b, c);
 
-            VPRINT("abc:\n");
-            VPRINT("%f %f %f\n", a[0], a[1], a[2]);
-            VPRINT("%f %f %f\n", b[0], b[1], b[2]);
-            VPRINT("%f %f %f\n", c[0], c[1], c[2]);
+            DPRINT("abc:\n");
+            DPRINT("%f %f %f\n", a[0], a[1], a[2]);
+            DPRINT("%f %f %f\n", b[0], b[1], b[2]);
+            DPRINT("%f %f %f\n", c[0], c[1], c[2]);
 
             // check if eigenvector points in same general direction as abc
             // if not flip eigenvector
@@ -326,10 +320,10 @@ int decomposeVelocities (t_fileio* trj_in,
             if (cblas_sdot(3, &eigenvectors[2], 3, c, 1) < 0.0)
                 cblas_sscal(3, -1.0, &eigenvectors[2], 3);
 
-            VPRINT("eigenvectors unflipped:\n");
-            VPRINT("%f %f %f\n", eigenvectors[0], eigenvectors[1], eigenvectors[2]);
-            VPRINT("%f %f %f\n", eigenvectors[3], eigenvectors[4], eigenvectors[5]);
-            VPRINT("%f %f %f\n", eigenvectors[6], eigenvectors[7], eigenvectors[8]);
+            DPRINT("eigenvectors unflipped:\n");
+            DPRINT("%f %f %f\n", eigenvectors[0], eigenvectors[1], eigenvectors[2]);
+            DPRINT("%f %f %f\n", eigenvectors[3], eigenvectors[4], eigenvectors[5]);
+            DPRINT("%f %f %f\n", eigenvectors[6], eigenvectors[7], eigenvectors[8]);
 
             // calculate angular velocity in new coords (moi coords)
             float angular_velocity_nc[3] = {0.0, 0.0, 0.0};
@@ -338,7 +332,7 @@ int decomposeVelocities (t_fileio* trj_in,
                 angular_velocity_nc[dim] = cblas_sdot(3, angular_momentum, 1, 
                         &eigenvectors[dim], 3) / moments_of_inertia[dim];
             }
-            VPRINT("angular velocity new coord: %8.4f%8.4f%8.4f\n", 
+            DPRINT("angular velocity new coord: %8.4f%8.4f%8.4f\n", 
                     angular_velocity_nc[0], angular_velocity_nc[1], angular_velocity_nc[2]);
 
             // calculate angular velocity new coord times squareroot of moi
@@ -346,7 +340,7 @@ int decomposeVelocities (t_fileio* trj_in,
             {
                 omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*dim + t] = angular_velocity_nc[dim] * sqrt(moments_of_inertia[dim]);
             }
-            VPRINT("omegas_sqrt_i: %8.4f%8.4f%8.4f\n", 
+            DPRINT("omegas_sqrt_i: %8.4f%8.4f%8.4f\n", 
                     omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*0 + t], 
                     omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*1 + t], 
                     omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*2 + t]);
@@ -354,10 +348,10 @@ int decomposeVelocities (t_fileio* trj_in,
         }
 
         // print data for one frame
-        VPRINT("molecules:\n");
+        DPRINT("molecules:\n");
         for (int i=0; i<nmols; i++)
         {
-            VPRINT("%5d%5d%5d%8.4f%8.4f%8.4f%8.4f%8.4f%8.4f%8.4f\n",
+            DPRINT("%5d%5d%5d%8.4f%8.4f%8.4f%8.4f%8.4f%8.4f%8.4f\n",
                     i, mol_natoms[i], mol_firstatom[i], mol_mass[i],
                     mol_velocities_trn[3*ntrajsteps*i + ntrajsteps*0 + t], mol_velocities_trn[3*ntrajsteps*i + ntrajsteps*1 + t], 
                     mol_velocities_trn[3*ntrajsteps*i + ntrajsteps*2 + t], omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*0 + t],
