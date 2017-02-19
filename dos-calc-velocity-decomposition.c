@@ -16,6 +16,7 @@
 #endif
 
 int decomposeVelocities (t_fileio* trj_in,
+        gmx_trr_header_t header,
         long ntrajsteps,
         int natoms, 
         int nmols, 
@@ -39,18 +40,6 @@ int decomposeVelocities (t_fileio* trj_in,
     float* positions_rel = calloc(3*natoms, sizeof(float));
     float* velocities_rot = calloc(3*natoms, sizeof(float)); // this one could be smaller, but big molecules
 
-    // read header
-    gmx_trr_header_t header;
-    gmx_bool bOK;
-    gmx_trr_read_frame_header(trj_in, &header, &bOK);
-    if (!bOK) {
-        printf("trajectory header broken\n");
-        return 1;
-    }
-
-    // print header
-    DPRINT("time: %i\n", header.t);
-
     // for reading of frame
     long step;
     int t = 0;
@@ -59,6 +48,8 @@ int decomposeVelocities (t_fileio* trj_in,
     rvec box[3];
     rvec* x = malloc(header.x_size * ntrajsteps);
     rvec* v = malloc(header.v_size * ntrajsteps);
+
+    DPRINT("start reading frame\n");
 
     while(gmx_trr_read_frame(trj_in, &step, &time, &lambda, box, &header.natoms, x, v, NULL))
     {
@@ -344,7 +335,6 @@ int decomposeVelocities (t_fileio* trj_in,
                     omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*0 + t], 
                     omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*1 + t], 
                     omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*2 + t]);
-
         }
 
         // print data for one frame
@@ -357,9 +347,10 @@ int decomposeVelocities (t_fileio* trj_in,
                     mol_velocities_trn[3*ntrajsteps*i + ntrajsteps*2 + t], omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*0 + t],
                     omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*1 + t], omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*2 + t]);
         }
+
+        DPRINT("Step %i (time %f) finished\n", t, time);
         t++;
     }    
-    gmx_trr_close(trj_in);
 
     // divide by number of steps to get average molecule moment of inertia
     for (int i=0; i<nmols; i++)

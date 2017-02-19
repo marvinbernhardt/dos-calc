@@ -10,14 +10,6 @@
 #include "dos-calc-fft.c"
 #include "verbPrintf.c"
 
-// uncomment next line for additional output
-//#define DEBUG
-#ifdef DEBUG
-#define DPRINT(...) do{ fprintf( stdout, __VA_ARGS__ ); } while( 0 )
-#else
-#define DPRINT(...)
-#endif
-
 // CLI stuff
 const char* argp_program_version = "dos-calc develop";
 const char* argp_program_bug_address = "<bernhardt@cpc.tu-darmstadt.de>";
@@ -117,12 +109,12 @@ int main( int argc, char *argv[] )
     scanf("%d", &nmols);
     scanf("%d", &nmoltypes);
 
-    DPRINT("Integers scanned:\n");
-    DPRINT("%d\n", nblocks);
-    DPRINT("%ld\n", nblocksteps);
-    DPRINT("%d\n", natoms);
-    DPRINT("%d\n", nmols);
-    DPRINT("%d\n", nmoltypes);
+    verbPrintf(verbosity, "Integers scanned:\n");
+    verbPrintf(verbosity, "%d\n", nblocks);
+    verbPrintf(verbosity, "%ld\n", nblocksteps);
+    verbPrintf(verbosity, "%d\n", natoms);
+    verbPrintf(verbosity, "%d\n", nmols);
+    verbPrintf(verbosity, "%d\n", nmoltypes);
 
     int* moltype_firstmol = calloc(nmoltypes, sizeof(int));
     for (int h=0; h<nmoltypes; h++)
@@ -191,6 +183,19 @@ int main( int argc, char *argv[] )
     verbPrintf(verbosity, "starting with file %s\n", arguments.file);
     t_fileio* trj_in = gmx_trr_open(arguments.file, "r");
 
+    // read header
+    verbPrintf(verbosity, "start reading header\n");
+    gmx_trr_header_t header;
+    gmx_bool bOK;
+    gmx_trr_read_frame_header(trj_in, &header, &bOK);
+    if (!bOK) {
+        printf("trajectory header broken\n");
+        return 1;
+    }
+
+    // print time of header
+    verbPrintf(verbosity, "time: %f\n", header.t);
+
     // output arrays
     float* mol_moments_of_inertia = calloc(nmols*3, sizeof(float));
     float* moltype_dos_raw_trn = calloc(nmoltypes*nfftsteps, sizeof(float));
@@ -211,6 +216,7 @@ int main( int argc, char *argv[] )
         float* velocities_vib = calloc(natoms*3*nblocksteps, sizeof(float));
 
         result = decomposeVelocities (trj_in,
+                header,
                 nblocksteps,
                 natoms, 
                 nmols, 
