@@ -84,6 +84,7 @@ int main( int argc, char *argv[] )
     bool verbosity = arguments.verbosity;
 
     // input that will be scanned
+    int nsamples;
     int nblocks;
     long nblocksteps;
     int natoms;
@@ -101,6 +102,7 @@ int main( int argc, char *argv[] )
     int result2;
 
     // start scanning
+    scanf("%d", &nsamples);
     scanf("%d", &nblocks);
     scanf("%ld", &nblocksteps);
 
@@ -111,6 +113,7 @@ int main( int argc, char *argv[] )
     scanf("%d", &nmoltypes);
 
     verbPrintf(verbosity, "Integers scanned:\n");
+    verbPrintf(verbosity, "%d\n", nsamples);
     verbPrintf(verbosity, "%d\n", nblocks);
     verbPrintf(verbosity, "%ld\n", nblocksteps);
     verbPrintf(verbosity, "%d\n", natoms);
@@ -193,200 +196,219 @@ int main( int argc, char *argv[] )
         printf("trajectory header broken\n");
         return 1;
     }
+    
+    // go back to start of file
     gmx_fio_rewind(trj_in);
 
-    // print time of header
-    verbPrintf(verbosity, "time: %f\n", header.t);
-
-    // output arrays
-    float* mol_moments_of_inertia = calloc(nmols*3, sizeof(float));
-    float* moltype_dos_raw_trn = calloc(nmoltypes*nfftsteps, sizeof(float));
-    float* moltype_dos_raw_rot = calloc(nmoltypes*nfftsteps, sizeof(float));
-    float* moltype_dos_raw_rot_a = calloc(nmoltypes*nfftsteps, sizeof(float));
-    float* moltype_dos_raw_rot_b = calloc(nmoltypes*nfftsteps, sizeof(float));
-    float* moltype_dos_raw_rot_c = calloc(nmoltypes*nfftsteps, sizeof(float));
-    float* moltype_dos_raw_vib = calloc(nmoltypes*nfftsteps, sizeof(float));
-
-    verbPrintf(verbosity, "going through %d blocks\n", nblocks);
-    for (int block=0; block<nblocks; block++)
+    verbPrintf(verbosity, "going through %d samples\n", nsamples);
+    for (int sample=0; sample<nsamples; sample++)
     {
-        verbPrintf(verbosity, "now doing block %d\n", block);
-        verbPrintf(verbosity, "start decomposition\n");
+        verbPrintf(verbosity, "now doing sample %d\n", sample);
 
-        float* mol_velocities_trn = calloc(nmols*3*nblocksteps, sizeof(float));
-        float* omegas_sqrt_i = calloc(nmols*3*nblocksteps, sizeof(float));
-        float* velocities_vib = calloc(natoms*3*nblocksteps, sizeof(float));
+        // output arrays
+        float* mol_moments_of_inertia = calloc(nmols*3, sizeof(float));
+        float* moltype_dos_raw_trn = calloc(nmoltypes*nfftsteps, sizeof(float));
+        float* moltype_dos_raw_rot = calloc(nmoltypes*nfftsteps, sizeof(float));
+        float* moltype_dos_raw_rot_a = calloc(nmoltypes*nfftsteps, sizeof(float));
+        float* moltype_dos_raw_rot_b = calloc(nmoltypes*nfftsteps, sizeof(float));
+        float* moltype_dos_raw_rot_c = calloc(nmoltypes*nfftsteps, sizeof(float));
+        float* moltype_dos_raw_vib = calloc(nmoltypes*nfftsteps, sizeof(float));
 
-        result = decomposeVelocities (trj_in,
-                header,
-                nblocksteps,
-                natoms, 
-                nmols, 
-                nmoltypes,
-                mol_firstatom,
-                mol_natoms,
-                mol_moltypenr,
-                atom_mass,
-                mol_mass,
-                moltype_natomtypes,
-                moltype_abc_indicators,
-                mol_velocities_trn,
-                omegas_sqrt_i,
-                velocities_vib,
-                mol_moments_of_inertia);
-
-        // dump first block only!
-        if (arguments.dump_vel == 1 && block == 0)
+        verbPrintf(verbosity, "going through %d blocks\n", nblocks);
+        for (int block=0; block<nblocks; block++)
         {
-            verbPrintf(verbosity, "start dumping (first block only)\n");
-            f = fopen("mol_omega_sqrt_i.txt", "w");
-            for (int h=0; h<nmoltypes; h++)
+            verbPrintf(verbosity, "now doing block %d\n", block);
+            verbPrintf(verbosity, "start decomposition\n");
+
+            float* mol_velocities_trn = calloc(nmols*3*nblocksteps, sizeof(float));
+            float* omegas_sqrt_i = calloc(nmols*3*nblocksteps, sizeof(float));
+            float* velocities_vib = calloc(natoms*3*nblocksteps, sizeof(float));
+
+            result = decomposeVelocities (trj_in,
+                    header,
+                    nblocksteps,
+                    natoms, 
+                    nmols, 
+                    nmoltypes,
+                    mol_firstatom,
+                    mol_natoms,
+                    mol_moltypenr,
+                    atom_mass,
+                    mol_mass,
+                    moltype_natomtypes,
+                    moltype_abc_indicators,
+                    mol_velocities_trn,
+                    omegas_sqrt_i,
+                    velocities_vib,
+                    mol_moments_of_inertia);
+
+            // dump first block only!
+            if (arguments.dump_vel == 1 && block == 0)
             {
-                int first_dof = moltype_firstmol[h]*3;
-                int last_dof = moltype_firstmol[h]*3 + moltype_nmols[h]*3;
-                for (int i=first_dof; i<last_dof; i++)
+                verbPrintf(verbosity, "start dumping (first block only)\n");
+                f = fopen("mol_omega_sqrt_i.txt", "w");
+                for (int h=0; h<nmoltypes; h++)
                 {
-                    for (int t=0; t<nblocksteps; t++)
+                    int first_dof = moltype_firstmol[h]*3;
+                    int last_dof = moltype_firstmol[h]*3 + moltype_nmols[h]*3;
+                    for (int i=first_dof; i<last_dof; i++)
                     {
-                        if (t!=0) fprintf(f, " ");
-                        fprintf(f, "%f", omegas_sqrt_i[i*nblocksteps + t]);
+                        for (int t=0; t<nblocksteps; t++)
+                        {
+                            if (t!=0) fprintf(f, " ");
+                            fprintf(f, "%f", omegas_sqrt_i[i*nblocksteps + t]);
+                        }
+                        fprintf(f, "\n");
                     }
-                    fprintf(f, "\n");
                 }
-            }
-            fclose(f);
+                fclose(f);
 
-            f = fopen("mol_velocities.txt", "w");
-            for (int h=0; h<nmoltypes; h++)
+                f = fopen("mol_velocities.txt", "w");
+                for (int h=0; h<nmoltypes; h++)
+                {
+                    int first_dof = moltype_firstmol[h]*3;
+                    int last_dof = moltype_firstmol[h]*3 + moltype_nmols[h]*3;
+                    for (int i=first_dof; i<last_dof; i++)
+                    {
+                        for (int t=0; t<nblocksteps; t++)
+                        {
+                            if (t!=0) fprintf(f, " ");
+                            fprintf(f, "%f", mol_velocities_trn[i*nblocksteps + t]);
+                        }
+                        fprintf(f, "\n");
+                    }
+                }
+                fclose(f);
+
+                f = fopen("atom_velocities_vib.txt", "w");
+                for (int h=0; h<nmoltypes; h++)
+                {
+                    int first_dof_vib = moltype_firstatom[h]*3;
+                    int last_dof_vib = moltype_firstatom[h]*3 + moltype_nmols[h]*moltype_natomtypes[h]*3;
+                    for (int i=first_dof_vib; i<last_dof_vib; i++)
+                    {
+                        for (int t=0; t<nblocksteps; t++)
+                        {
+                            if (t!=0) fprintf(f, " ");
+                        }
+                        fprintf(f, "\n");
+                    }
+                }
+                fclose(f);
+            }
+
+            verbPrintf(verbosity, "start DoS calculation (FFT)\n");
+            result2 = DOSCalculation (nmoltypes,
+                    nblocksteps,
+                    nfftsteps,
+                    moltype_firstmol,
+                    moltype_firstatom,
+                    moltype_nmols,
+                    moltype_natomtypes,
+                    atom_mass,
+                    mol_velocities_trn,
+                    omegas_sqrt_i,
+                    velocities_vib,
+                    moltype_dos_raw_trn,
+                    moltype_dos_raw_rot,
+                    moltype_dos_raw_rot_a,
+                    moltype_dos_raw_rot_b,
+                    moltype_dos_raw_rot_c,
+                    moltype_dos_raw_vib);
+        } 
+        verbPrintf(verbosity, "finished all blocks\n");
+
+        // divide results by number of blocks
+        cblas_sscal(nmols*3, 1.0 / (float)nblocks, mol_moments_of_inertia, 1);
+        cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltype_dos_raw_trn, 1);
+        cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltype_dos_raw_rot, 1);
+        cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltype_dos_raw_rot_a, 1);
+        cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltype_dos_raw_rot_b, 1);
+        cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltype_dos_raw_rot_c, 1);
+        cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltype_dos_raw_vib, 1);
+
+        char filename[255] = {0};
+        sprintf(filename, "sample%d_dos_trn.txt", sample);
+        f = fopen(filename, "w");
+
+        for (int h=0; h<nmoltypes; h++)
+        {
+            for (int t=0; t<nfftsteps; t++)
             {
-                int first_dof = moltype_firstmol[h]*3;
-                int last_dof = moltype_firstmol[h]*3 + moltype_nmols[h]*3;
-                for (int i=first_dof; i<last_dof; i++)
-                {
-                    for (int t=0; t<nblocksteps; t++)
-                    {
-                        if (t!=0) fprintf(f, " ");
-                        fprintf(f, "%f", mol_velocities_trn[i*nblocksteps + t]);
-                    }
-                    fprintf(f, "\n");
-                }
+                if (t!=0) fprintf(f, " ");
+                fprintf(f, "%f", moltype_dos_raw_trn[h*nfftsteps + t]);
             }
-            fclose(f);
+            fprintf(f, "\n");
+        }
+        fclose(f);
 
-            f = fopen("atom_velocities_vib.txt", "w");
-            for (int h=0; h<nmoltypes; h++)
+        sprintf(filename, "sample%d_dos_rot.txt", sample);
+        f = fopen(filename, "w");
+
+        for (int h=0; h<nmoltypes; h++)
+        {
+            for (int t=0; t<nfftsteps; t++)
             {
-                int first_dof_vib = moltype_firstatom[h]*3;
-                int last_dof_vib = moltype_firstatom[h]*3 + moltype_nmols[h]*moltype_natomtypes[h]*3;
-                for (int i=first_dof_vib; i<last_dof_vib; i++)
-                {
-                    for (int t=0; t<nblocksteps; t++)
-                    {
-                        if (t!=0) fprintf(f, " ");
-                    }
-                    fprintf(f, "\n");
-                }
+                if (t!=0) fprintf(f, " ");
+                fprintf(f, "%f", moltype_dos_raw_rot[h*nfftsteps + t]);
             }
-            fclose(f);
+            fprintf(f, "\n");
         }
+        fclose(f);
 
-        verbPrintf(verbosity, "start DoS calculation (FFT)\n");
-        result2 = DOSCalculation (nmoltypes,
-                nblocksteps,
-                nfftsteps,
-                moltype_firstmol,
-                moltype_firstatom,
-                moltype_nmols,
-                moltype_natomtypes,
-                atom_mass,
-                mol_velocities_trn,
-                omegas_sqrt_i,
-                velocities_vib,
-                moltype_dos_raw_trn,
-                moltype_dos_raw_rot,
-                moltype_dos_raw_rot_a,
-                moltype_dos_raw_rot_b,
-                moltype_dos_raw_rot_c,
-                moltype_dos_raw_vib);
-        printf("dos value test: %f\n", moltype_dos_raw_trn[0]);
-    } 
-    verbPrintf(verbosity, "finished all blocks\n");
-
-    // divide results by number of blocks
-    cblas_sscal(nmols*3, 1.0 / (float)nblocks, mol_moments_of_inertia, 1);
-    cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltype_dos_raw_trn, 1);
-    cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltype_dos_raw_rot, 1);
-    cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltype_dos_raw_rot_a, 1);
-    cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltype_dos_raw_rot_b, 1);
-    cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltype_dos_raw_rot_c, 1);
-    cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltype_dos_raw_vib, 1);
-
-    f = fopen("moltype_dos_raw_trn.txt", "w");
-    for (int h=0; h<nmoltypes; h++)
-    {
-        for (int t=0; t<nfftsteps; t++)
+        // individual axis (abc) rotational spectrum
+        char filenamea[255] = {0};
+        char filenameb[255] = {0};
+        char filenamec[255] = {0};
+        sprintf(filenamea, "sample%d_dos_rot_a.txt", sample);
+        sprintf(filenameb, "sample%d_dos_rot_b.txt", sample);
+        sprintf(filenamec, "sample%d_dos_rot_c.txt", sample);
+        fa = fopen(filenamea, "w");
+        fb = fopen(filenameb, "w");
+        fc = fopen(filenamec, "w");
+        for (int h=0; h<nmoltypes; h++)
         {
-            if (t!=0) fprintf(f, " ");
-            fprintf(f, "%f", moltype_dos_raw_trn[h*nfftsteps + t]);
+            for (int t=0; t<nfftsteps; t++)
+            {
+                if (t!=0) fprintf(fa, " ");
+                if (t!=0) fprintf(fb, " ");
+                if (t!=0) fprintf(fc, " ");
+                fprintf(fa, "%f", moltype_dos_raw_rot_a[h*nfftsteps + t]);
+                fprintf(fb, "%f", moltype_dos_raw_rot_b[h*nfftsteps + t]);
+                fprintf(fc, "%f", moltype_dos_raw_rot_c[h*nfftsteps + t]);
+            }
+            fprintf(fa, "\n");
+            fprintf(fb, "\n");
+            fprintf(fc, "\n");
         }
-        fprintf(f, "\n");
-    }
-    fclose(f);
+        fclose(fa);
+        fclose(fb);
+        fclose(fc);
 
-    f = fopen("moltype_dos_raw_rot.txt", "w");
-    for (int h=0; h<nmoltypes; h++)
-    {
-        for (int t=0; t<nfftsteps; t++)
+        sprintf(filename, "sample%d_dos_vib.txt", sample);
+        f = fopen(filename, "w");
+        for (int h=0; h<nmoltypes; h++)
         {
-            if (t!=0) fprintf(f, " ");
-            fprintf(f, "%f", moltype_dos_raw_rot[h*nfftsteps + t]);
+            for (int t=0; t<nfftsteps; t++)
+            {
+                if (t!=0) fprintf(f, " ");
+                fprintf(f, "%f", moltype_dos_raw_vib[h*nfftsteps + t]);
+            }
+            fprintf(f, "\n");
         }
-        fprintf(f, "\n");
-    }
-    fclose(f);
+        fclose(f);
 
-    // test dos_rot_abc
-    fa = fopen("moltype_dos_raw_rot_a.txt", "w");
-    fb = fopen("moltype_dos_raw_rot_b.txt", "w");
-    fc = fopen("moltype_dos_raw_rot_c.txt", "w");
-    for (int h=0; h<nmoltypes; h++)
-    {
-        for (int t=0; t<nfftsteps; t++)
+        sprintf(filename, "sample%d_moi.txt", sample);
+        f = fopen(filename, "w");
+        for (int i=0; i<nmols; i++)
         {
-            if (t!=0) fprintf(fa, " ");
-            if (t!=0) fprintf(fb, " ");
-            if (t!=0) fprintf(fc, " ");
-            fprintf(fa, "%f", moltype_dos_raw_rot_a[h*nfftsteps + t]);
-            fprintf(fb, "%f", moltype_dos_raw_rot_b[h*nfftsteps + t]);
-            fprintf(fc, "%f", moltype_dos_raw_rot_c[h*nfftsteps + t]);
+            fprintf(f, "%f %f %f\n", mol_moments_of_inertia[3*i+0], 
+                    mol_moments_of_inertia[3*i+1], mol_moments_of_inertia[3*i+2]);
         }
-        fprintf(fa, "\n");
-        fprintf(fb, "\n");
-        fprintf(fc, "\n");
-    }
-    fclose(fa);
-    fclose(fb);
-    fclose(fc);
+        fclose(f);
 
-    f = fopen("moltype_dos_raw_vib.txt", "w");
-    for (int h=0; h<nmoltypes; h++)
-    {
-        for (int t=0; t<nfftsteps; t++)
-        {
-            if (t!=0) fprintf(f, " ");
-            fprintf(f, "%f", moltype_dos_raw_vib[h*nfftsteps + t]);
-        }
-        fprintf(f, "\n");
     }
-    fclose(f);
-
-    f = fopen("mol_moments_of_inertia.txt", "w");
-    for (int i=0; i<nmols; i++)
-    {
-        fprintf(f, "%f %f %f\n", mol_moments_of_inertia[3*i+0], 
-                mol_moments_of_inertia[3*i+1], mol_moments_of_inertia[3*i+2]);
-    }
-    fclose(f);
+    verbPrintf(verbosity, "finished all samples\n");
 
     return result + result2;
 }
