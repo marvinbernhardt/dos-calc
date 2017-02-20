@@ -10,7 +10,7 @@
 
 //#define DEBUG
 #ifdef DEBUG
-#define DPRINT(...) do{ fprintf( stderr, __VA_ARGS__ ); } while( 0 )
+#define DPRINT(...) do{ fprintf( stdout, __VA_ARGS__ ); } while( 0 )
 #else
 #define DPRINT(...)
 #endif
@@ -42,7 +42,6 @@ int decomposeVelocities (t_fileio* trj_in,
 
     // for reading of frame
     long step;
-    int t = 0;
     real time;
     real lambda;
     rvec box[3];
@@ -51,10 +50,13 @@ int decomposeVelocities (t_fileio* trj_in,
 
     DPRINT("start reading frame\n");
 
-    while(gmx_trr_read_frame(trj_in, &step, &time, &lambda, box, &header.natoms, x, v, NULL))
+    for (int t=0; t<ntrajsteps; t++)
     {
-        if ( t >= ntrajsteps )
-            break;
+        if (gmx_trr_read_frame(trj_in, &step, &time, &lambda, box, &header.natoms, x, v, NULL) == FALSE)
+        {
+            printf("Reading frame failed\n");
+            return 1;
+        }
 
         DPRINT("There are %i atoms at step %i (time %f). My box is: %f %f %f \n",
                 header.natoms, t, time, box[0][0], box[1][1], box[2][2]);
@@ -349,7 +351,6 @@ int decomposeVelocities (t_fileio* trj_in,
         }
 
         DPRINT("Step %i (time %f) finished\n", t, time);
-        t++;
     }    
 
     // divide by number of steps to get average molecule moment of inertia

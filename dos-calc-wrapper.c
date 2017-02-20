@@ -15,6 +15,7 @@ const char* argp_program_version = "dos-calc develop";
 const char* argp_program_bug_address = "<bernhardt@cpc.tu-darmstadt.de>";
 static char doc[] = "dos-calc -- a programm to calculate densities of states from trajectories";
 static char args_doc[] = "";
+
 static struct argp_option options[] = {
     {"dump",     'd', 0,      0,  "Dump velocities of first block" },
     {"verbose",  'v', 0,      0,  "Produce verbose output" },
@@ -192,6 +193,7 @@ int main( int argc, char *argv[] )
         printf("trajectory header broken\n");
         return 1;
     }
+    gmx_fio_rewind(trj_in);
 
     // print time of header
     verbPrintf(verbosity, "time: %f\n", header.t);
@@ -306,6 +308,7 @@ int main( int argc, char *argv[] )
                 moltype_dos_raw_rot_b,
                 moltype_dos_raw_rot_c,
                 moltype_dos_raw_vib);
+        printf("dos value test: %f\n", moltype_dos_raw_trn[0]);
     } 
     verbPrintf(verbosity, "finished all blocks\n");
 
