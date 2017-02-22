@@ -315,6 +315,11 @@ int main( int argc, char *argv[] )
                     moltype_dos_raw_rot_b,
                     moltype_dos_raw_rot_c,
                     moltype_dos_raw_vib);
+
+            //free velocities
+            free(mol_velocities_trn);
+            free(omegas_sqrt_i);
+            free(velocities_vib);
         } 
         verbPrintf(verbosity, "finished all blocks\n");
 
@@ -407,8 +412,29 @@ int main( int argc, char *argv[] )
         }
         fclose(f);
 
+        // free DoSes
+        free(mol_moments_of_inertia);
+        free(moltype_dos_raw_trn);
+        free(moltype_dos_raw_rot);
+        free(moltype_dos_raw_rot_a);
+        free(moltype_dos_raw_rot_b);
+        free(moltype_dos_raw_rot_c);
+        free(moltype_dos_raw_vib);
+
     }
     verbPrintf(verbosity, "finished all samples\n");
+
+    // free input arrays
+    free(moltype_firstmol);
+    free(moltype_firstatom);
+    free(moltype_nmols);
+    free(moltype_natomtypes);
+    free(moltype_abc_indicators);
+    free(mol_firstatom);
+    free(mol_natoms);
+    free(mol_mass);
+    free(mol_moltypenr);
+    free(atom_mass);
 
     return result + result2;
 }

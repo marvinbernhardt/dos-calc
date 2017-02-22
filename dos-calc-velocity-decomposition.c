@@ -364,6 +364,8 @@ int decomposeVelocities (t_fileio* trj_in,
                 mol_moments_of_inertia[3*i+0], mol_moments_of_inertia[3*i+1], mol_moments_of_inertia[3*i+2]);
     }
 
+    free(x);
+    free(v);
     free(velocities);
     free(positions);
     free(positions_rel);
