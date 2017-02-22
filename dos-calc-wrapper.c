@@ -98,8 +98,8 @@ int main( int argc, char *argv[] )
     FILE* fc;
 
     // results of decomposeVelocities and DOSCalculation
-    int result;
-    int result2;
+    int result = 0;
+    int result2 = 0;
 
     // start scanning
     scanf("%d", &nsamples);

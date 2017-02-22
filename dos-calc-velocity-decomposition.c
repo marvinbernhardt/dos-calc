@@ -1,3 +1,4 @@
+#include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -33,13 +34,6 @@ int decomposeVelocities (t_fileio* trj_in,
         float* velocities_vib,
         float* mol_moments_of_inertia) 
 {
-
-    // allocate positions, velocities, ...
-    float* positions = calloc(3*natoms, sizeof(float)); // this one could be smaller, but big molecules might arrive
-    float* velocities = calloc(3*natoms, sizeof(float)); // this one could be smaller, but big molecules might arrive
-    float* positions_rel = calloc(3*natoms, sizeof(float));
-    float* velocities_rot = calloc(3*natoms, sizeof(float)); // this one could be smaller, but big molecules
-
     // for reading of frame
     long step;
     real time;
@@ -48,20 +42,39 @@ int decomposeVelocities (t_fileio* trj_in,
     rvec* x = malloc(header.x_size * ntrajsteps);
     rvec* v = malloc(header.v_size * ntrajsteps);
 
-    DPRINT("start reading frame\n");
+    // no dynamic teams!!!
+    omp_set_dynamic(0);
 
+    static float* positions;
+    static float* velocities;
+    static float* positions_rel;
+    static float* velocities_rot;
+    #pragma omp threadprivate(positions, velocities, positions_rel, velocities_rot)
+
+    #pragma omp parallel num_threads(8)
+    {
+        // allocate positions, velocities (work arrays private to each thread)
+        positions = calloc(3*natoms, sizeof(float)); // this one could be smaller, but big molecules might arrive
+        velocities = calloc(3*natoms, sizeof(float)); // this one could be smaller, but big molecules might arrive
+        positions_rel = calloc(3*natoms, sizeof(float));
+        velocities_rot = calloc(3*natoms, sizeof(float)); // this one could be smaller, but big molecules
+    }
+
+    DPRINT("start reading frame\n");
     for (int t=0; t<ntrajsteps; t++)
     {
         if (gmx_trr_read_frame(trj_in, &step, &time, &lambda, box, &header.natoms, x, v, NULL) == FALSE)
         {
             printf("Reading frame failed\n");
-            return 1;
+            //return 1;
         }
 
         DPRINT("There are %i atoms at step %i (time %f). My box is: %f %f %f \n",
                 header.natoms, t, time, box[0][0], box[1][1], box[2][2]);
 
+
         // loop over molecules
+        #pragma omp parallel for num_threads(8)
         for (int i=0; i<nmols; i++)
         {
             DPRINT("\ndoing molecule %d\n", i);
@@ -337,6 +350,8 @@ int decomposeVelocities (t_fileio* trj_in,
                     omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*0 + t], 
                     omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*1 + t], 
                     omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*2 + t]);
+
+
         }
 
         // print data for one frame
@@ -351,7 +366,15 @@ int decomposeVelocities (t_fileio* trj_in,
         }
 
         DPRINT("Step %i (time %f) finished\n", t, time);
-    }    
+    }
+
+    #pragma omp parallel num_threads(8)
+    {
+        free(velocities);
+        free(positions);
+        free(positions_rel);
+        free(velocities_rot);
+    }
 
     // divide by number of steps to get average molecule moment of inertia
     for (int i=0; i<nmols; i++)
@@ -364,11 +387,8 @@ int decomposeVelocities (t_fileio* trj_in,
                 mol_moments_of_inertia[3*i+0], mol_moments_of_inertia[3*i+1], mol_moments_of_inertia[3*i+2]);
     }
 
+    // free help arrays
     free(x);
     free(v);
-    free(velocities);
-    free(positions);
-    free(positions_rel);
-    free(velocities_rot);
     return 0;
 }
