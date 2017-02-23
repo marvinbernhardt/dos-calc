@@ -2,7 +2,6 @@
 
 gcc dos-calc-wrapper.c \
     -Wall \
-    -march=nehalem \
     -O3 \
     -fopenmp \
     -std=gnu99 \
