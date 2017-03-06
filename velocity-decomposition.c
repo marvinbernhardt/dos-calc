@@ -35,7 +35,7 @@ int decomposeVelocities (t_fileio* trj_in,
         float* mol_moments_of_inertia)
 {
     // for reading of frame
-    gmx_int64_t step;
+    int step;
     real time;
     real lambda;
     rvec box[3];
