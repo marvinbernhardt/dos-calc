@@ -2,7 +2,6 @@ PREFIX = $$HOME
 OBJ = dos-calc.c
 PROGRAM = dos-calc
 
-CC = /usr/bin/gcc
 CFLAGS = -Wall -O3 -fopenmp -std=gnu99
 LDFLAGS = -lgromacs -llapacke -lcblas -lblas -lfftw3f -lm
 INC = -I $${GROMACS_DIR}/include
