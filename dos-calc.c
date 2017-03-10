@@ -196,7 +196,7 @@ int main( int argc, char *argv[] )
         printf("trajectory header broken\n");
         return 1;
     }
-    
+
     // go back to start of file
     gmx_fio_rewind(trj_in);
 
@@ -227,8 +227,8 @@ int main( int argc, char *argv[] )
             result = decomposeVelocities (trj_in,
                     header,
                     nblocksteps,
-                    natoms, 
-                    nmols, 
+                    natoms,
+                    nmols,
                     nmoltypes,
                     mol_firstatom,
                     mol_natoms,
@@ -320,7 +320,7 @@ int main( int argc, char *argv[] )
             free(mol_velocities_trn);
             free(omegas_sqrt_i);
             free(velocities_vib);
-        } 
+        }
         verbPrintf(verbosity, "finished all blocks\n");
 
         // divide results by number of blocks
@@ -407,7 +407,7 @@ int main( int argc, char *argv[] )
         f = fopen(filename, "w");
         for (int i=0; i<nmols; i++)
         {
-            fprintf(f, "%f %f %f\n", mol_moments_of_inertia[3*i+0], 
+            fprintf(f, "%f %f %f\n", mol_moments_of_inertia[3*i+0],
                     mol_moments_of_inertia[3*i+1], mol_moments_of_inertia[3*i+2]);
         }
         fclose(f);
