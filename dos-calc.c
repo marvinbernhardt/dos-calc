@@ -323,8 +323,8 @@ int main( int argc, char *argv[] )
         }
         verbPrintf(verbosity, "finished all blocks\n");
 
-        // divide results by number of blocks
-        cblas_sscal(nmols*3, 1.0 / (float)nblocks, mol_moments_of_inertia, 1);
+        // divide results by number of blocks (and number of blocksteps for the moi)
+        cblas_sscal(nmols*3, 1.0 / (float) nblocks / (float) nblocksteps, mol_moments_of_inertia, 1);
         cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltype_dos_raw_trn, 1);
         cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltype_dos_raw_rot, 1);
         cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltype_dos_raw_rot_a, 1);

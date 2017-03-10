@@ -376,8 +376,8 @@ int decomposeVelocities (t_fileio* trj_in,
         free(velocities_rot);
     }
 
-    // divide by number of steps to get average molecule moment of inertia
-    for (int i=0; i<nmols; i++)
+    // do not divide by number of steps here, but after block in main program
+    /*for (int i=0; i<nmols; i++)
     {
         for (int dim=0; dim<3; dim++)
         {
@@ -385,7 +385,7 @@ int decomposeVelocities (t_fileio* trj_in,
         }
         DPRINT("molecule %d moments of inertia: %8.4f%8.4f%8.4f\n", i,
                 mol_moments_of_inertia[3*i+0], mol_moments_of_inertia[3*i+1], mol_moments_of_inertia[3*i+2]);
-    }
+    }*/
 
     // free help arrays
     free(x);
