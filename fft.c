@@ -36,7 +36,7 @@ int DOSCalculation (int nmoltypes,
         float* moltype_dos_raw_rot_a,
         float* moltype_dos_raw_rot_b,
         float* moltype_dos_raw_rot_c,
-        float* moltype_dos_raw_vib) 
+        float* moltype_dos_raw_vib)
 {
     VPRINT("starting with FFT of translational and rotational dofs\n");
 
@@ -63,7 +63,7 @@ int DOSCalculation (int nmoltypes,
                 fft_out_squared[t] = cabs(fft_out[t] * fft_out[t]);
             }
 
-            cblas_saxpy(nfftsteps, 1.0, fft_out_squared, 1, 
+            cblas_saxpy(nfftsteps, 1.0, fft_out_squared, 1,
                     &moltype_dos_raw_trn[h*nfftsteps], 1);
 
             DPRINT("rotational dof nr %d\n", i);
@@ -76,7 +76,7 @@ int DOSCalculation (int nmoltypes,
                 fft_out_squared[t] = cabs(fft_out[t] * fft_out[t]);
             }
 
-            cblas_saxpy(nfftsteps, 1.0, fft_out_squared, 1, 
+            cblas_saxpy(nfftsteps, 1.0, fft_out_squared, 1,
                     &moltype_dos_raw_rot[h*nfftsteps], 1);
             if ( i % 3 == 0 ) cblas_saxpy(nfftsteps, 1.0, fft_out_squared, 1, &moltype_dos_raw_rot_a[h*nfftsteps], 1);
             if ( i % 3 == 1 ) cblas_saxpy(nfftsteps, 1.0, fft_out_squared, 1, &moltype_dos_raw_rot_b[h*nfftsteps], 1);
@@ -99,7 +99,7 @@ int DOSCalculation (int nmoltypes,
                 fft_out_squared[t] = atom_mass[i/3] * cabs(fft_out[t] * fft_out[t]);
             }
 
-            cblas_saxpy(nfftsteps, 1.0, fft_out_squared, 1, 
+            cblas_saxpy(nfftsteps, 1.0, fft_out_squared, 1,
                     &moltype_dos_raw_vib[h*nfftsteps], 1);
         }
 
