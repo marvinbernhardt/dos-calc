@@ -317,6 +317,16 @@ int decomposeVelocities (t_fileio* trj_in,
             DPRINT("%f %f %f\n", b[0], b[1], b[2]);
             DPRINT("%f %f %f\n", c[0], c[1], c[2]);
 
+            // check if eigenvectors and abc match better to eigenvectors and bca
+            // if not swap eingenvectors and eigenvalues
+            if (fabs(cblas_sdot(3, &eigenvectors[0], 3, a, 1)) < fabs(cblas_sdot(3, &eigenvectors[0], 3, b, 1)))
+            {
+                cblas_sswap(3, &eigenvectors[0], 1, &eigenvectors[3], 1);
+                float temp = moments_of_inertia[0];
+                moments_of_inertia[0] = moments_of_inertia[1];
+                moments_of_inertia[1] = temp;
+            }
+
             // check if eigenvector points in same general direction as abc
             // if not flip eigenvector
             if (cblas_sdot(3, &eigenvectors[0], 3, a, 1) < 0.0)
