@@ -290,6 +290,7 @@ int main( int argc, char *argv[] )
                         for (int t=0; t<nblocksteps; t++)
                         {
                             if (t!=0) fprintf(f, " ");
+                            fprintf(f, "%f", velocities_vib[i*nblocksteps + t]);
                         }
                         fprintf(f, "\n");
                     }
