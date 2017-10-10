@@ -1,11 +1,12 @@
-PREFIX = $$HOME
-OBJ = dos-calc.c
-PROGRAM = dos-calc
+PREFIX := $$HOME
+OBJ := dos-calc.c
+PROGRAM := dos-calc
+GIT_VERSION := $(shell git describe --abbrev=4 --dirty --always --tags)
 
-CFLAGS = -Wall -O3 -fopenmp -std=gnu99
-LDFLAGS = -lgromacs -llapacke -llapack -lcblas -lblas -lfftw3f -lm -lgfortran
-INC = -I $${GROMACS_DIR}/include
-LIB = -L $${GMXLDLIB}
+CFLAGS := -Wall -O3 -fopenmp -std=gnu99 -DVERSION=\"$(GIT_VERSION)\"
+LDFLAGS := -lgromacs -llapacke -llapack -lcblas -lblas -lfftw3f -lm -lgfortran
+INC := -I $${GROMACS_DIR}/include
+LIB := -L $${GMXLDLIB}
 
 $(PROGRAM): $(OBJ) velocity-decomposition.c fft.c linear-algebra.c verbPrintf.c
 	$(CC) $(CFLAGS) -o $(PROGRAM) $(OBJ) $(INC) $(LIB) $(LDFLAGS)

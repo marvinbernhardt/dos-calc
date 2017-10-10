@@ -11,7 +11,7 @@
 #include "verbPrintf.c"
 
 // CLI stuff
-const char* argp_program_version = "dos-calc develop";
+const char* argp_program_version = VERSION;
 const char* argp_program_bug_address = "<bernhardt@cpc.tu-darmstadt.de>";
 static char doc[] = "dos-calc -- a programm to calculate densities of states from trajectories";
 static char args_doc[] = "";
