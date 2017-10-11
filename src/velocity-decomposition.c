@@ -346,17 +346,19 @@ int decomposeVelocities (t_fileio* trj_in,
             {
                 // original
                 //omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*dim + t] = angular_velocity_nc[dim] * sqrt(moments_of_inertia[dim]);
-                // test dot(L, omega)[dim]
-                //omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*dim + t] = sqrt(angular_velocity[dim] * angular_momentum[dim]);
                 // test dot(L, omega)
-                omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*dim + t] = sqrt(angular_velocity[0] * angular_momentum[0] + angular_velocity[1] * angular_momentum[1] + angular_velocity[2] * angular_momentum[2]);
+                //omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*dim + t] = sqrt(angular_velocity[0] * angular_momentum[0] + angular_velocity[1] * angular_momentum[1] + angular_velocity[2] * angular_momentum[2]);
+                // test crazy
+                //omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*dim + t] = angular_velocity[dim];
+                // test crazy 2
+                //omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*dim + t] = angular_momentum[dim];
+                // test crazy 3
+                omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*dim + t] = angular_velocity[dim] * sqrt(moi_tensor[3*dim+dim]);
             }
             DPRINT("omegas_sqrt_i: %8.4f%8.4f%8.4f\n",
                     omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*0 + t],
                     omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*1 + t],
                     omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*2 + t]);
-
-
         }
 
         // print data for one frame

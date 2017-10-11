@@ -1,6 +1,6 @@
 PREFIX := $$HOME
 OBJ := dos-calc.c
-PROGRAM := dos-calc
+PROGRAM := dos-calc-devel
 GIT_VERSION := $(shell git describe --abbrev=4 --dirty --always --tags)
 
 CFLAGS := -Wall -O3 -fopenmp -std=gnu99 -DVERSION=\"$(GIT_VERSION)\"
