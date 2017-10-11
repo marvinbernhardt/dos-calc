@@ -28,6 +28,7 @@ int DOSCalculation (int nmoltypes,
         int* moltype_nmols,
         int* moltype_natomtypes,
         float* atom_mass,
+        float* mol_mass,
         float* mol_velocities_trn,
         float* omegas_sqrt_i,
         float* velocities_vib,
@@ -60,7 +61,7 @@ int DOSCalculation (int nmoltypes,
             DPRINT("abs and square of fft\n");
             for (int t=0; t<nfftsteps; t++)
             {
-                fft_out_squared[t] = cabs(fft_out[t] * fft_out[t]);
+                fft_out_squared[t] = mol_mass[i/3] * cabs(fft_out[t] * fft_out[t]);
             }
 
             cblas_saxpy(nfftsteps, 1.0, fft_out_squared, 1,

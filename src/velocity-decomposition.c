@@ -353,7 +353,11 @@ int decomposeVelocities (t_fileio* trj_in,
                 // test crazy 2
                 //omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*dim + t] = angular_momentum[dim];
                 // test crazy 3
-                omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*dim + t] = angular_velocity[dim] * sqrt(moi_tensor[3*dim+dim]);
+                //omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*dim + t] = angular_velocity[dim] * sqrt(moi_tensor[3*dim+dim]);
+                // test crazy 4
+                //omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*dim + t] = angular_velocity[1] * sqrt(moi_tensor[4]);
+                // this seems to work
+                omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*dim + t] = angular_momentum[dim] / sqrt(moi_tensor[3*dim+dim]);
             }
             DPRINT("omegas_sqrt_i: %8.4f%8.4f%8.4f\n",
                     omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*0 + t],

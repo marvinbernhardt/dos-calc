@@ -307,6 +307,7 @@ int main( int argc, char *argv[] )
                     moltype_nmols,
                     moltype_natomtypes,
                     atom_mass,
+                    mol_mass,
                     mol_velocities_trn,
                     omegas_sqrt_i,
                     velocities_vib,
