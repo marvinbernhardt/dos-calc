@@ -128,7 +128,7 @@ int decomposeVelocities (t_fileio* trj_in,
             // calc molecule velocity and molecule com
             float center_of_mass[3] = {0.0, 0.0, 0.0};
             float mol_velocity_trn[3] = {0.0, 0.0, 0.0};
-            // this might also be done by a matrix multiplication but maybee overkill
+            // this might also be done by a matrix multiplication but maybe overkill
             for (int dim=0; dim<3; dim++)
             {
                 mol_velocity_trn[dim] = cblas_sdot(m_natoms,
@@ -345,19 +345,12 @@ int decomposeVelocities (t_fileio* trj_in,
             for (int dim=0; dim<3; dim++)
             {
                 // original
-                //omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*dim + t] = angular_velocity_nc[dim] * sqrt(moments_of_inertia[dim]);
-                // test dot(L, omega)
-                //omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*dim + t] = sqrt(angular_velocity[0] * angular_momentum[0] + angular_velocity[1] * angular_momentum[1] + angular_velocity[2] * angular_momentum[2]);
-                // test crazy
-                //omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*dim + t] = angular_velocity[dim];
-                // test crazy 2
-                //omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*dim + t] = angular_momentum[dim];
-                // test crazy 3
-                //omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*dim + t] = angular_velocity[dim] * sqrt(moi_tensor[3*dim+dim]);
-                // test crazy 4
-                //omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*dim + t] = angular_velocity[1] * sqrt(moi_tensor[4]);
+                omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*dim + t] = angular_velocity_nc[dim] * sqrt(moments_of_inertia[dim]);
                 // this seems to work
-                omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*dim + t] = angular_momentum[dim] / sqrt(moi_tensor[3*dim+dim]);
+                //omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*dim + t] = angular_velocity[dim] * sqrt(moi_tensor[3*dim+dim]);
+                // this seems to work, too
+                //omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*dim + t] = angular_momentum[dim] / sqrt(moi_tensor[3*dim+dim]);
+
             }
             DPRINT("omegas_sqrt_i: %8.4f%8.4f%8.4f\n",
                     omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*0 + t],

@@ -1,7 +1,7 @@
 PREFIX := $$HOME
 OBJ := dos-calc.c
 PROGRAM := dos-calc-devel
-GIT_VERSION := $(shell git describe --abbrev=4 --dirty --always --tags)
+GIT_VERSION := develop-$(shell git describe --abbrev=4 --dirty --always --tags)
 
 CFLAGS := -Wall -O3 -fopenmp -std=gnu99 -DVERSION=\"$(GIT_VERSION)\"
 LDFLAGS := -lgromacs -llapacke -llapack -lcblas -lblas -lfftw3f -lm -lgfortran
