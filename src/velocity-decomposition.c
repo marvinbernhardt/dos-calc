@@ -28,10 +28,11 @@ int decomposeVelocities (t_fileio* trj_in,
         float* atom_mass,
         float* mol_mass,
         int* moltype_natomtypes,
+        char* moltype_rot_treat,
         int* moltype_abc_indicators,
-        float* mol_velocities_trn,
-        float* omegas_sqrt_i,
-        float* velocities_vib,
+        float* mol_velocities_sqrt_m_trn, //output
+        float* mol_omegas_sqrt_i_rot,
+        float* atom_velocities_sqrt_m_vib,
         float* mol_moments_of_inertia)
 {
     // for reading of frame
@@ -51,7 +52,8 @@ int decomposeVelocities (t_fileio* trj_in,
     static float* velocities_rot;
     #pragma omp threadprivate(positions, velocities, positions_rel, velocities_rot)
 
-    #pragma omp parallel num_threads(8)
+    //#pragma omp parallel num_threads(8)
+    #pragma omp parallel
     {
         // allocate positions, velocities (work arrays private to each thread)
         positions = calloc(3*natoms, sizeof(float)); // this one could be smaller, but big molecules might arrive
@@ -74,7 +76,8 @@ int decomposeVelocities (t_fileio* trj_in,
 
 
         // loop over molecules
-        #pragma omp parallel for num_threads(8)
+        //#pragma omp parallel for num_threads(8)
+        #pragma omp parallel
         for (int i=0; i<nmols; i++)
         {
             DPRINT("\ndoing molecule %d\n", i);
@@ -83,6 +86,7 @@ int decomposeVelocities (t_fileio* trj_in,
             int m_moltype = mol_moltypenr[i];
             float m_mass = mol_mass[i];
             int* m_abc_indicators = &moltype_abc_indicators[4 * m_moltype];
+            char m_rot_treat = moltype_rot_treat[m_moltype];
 
             // read atoms of one molecule
             for (int j=0; j<m_natoms; j++)
@@ -106,21 +110,13 @@ int decomposeVelocities (t_fileio* trj_in,
             // ============
             if (m_natoms == 1)
             {
+                int atom = m_firstatom;
                 for (int dim=0; dim<3; dim++)
                 {
-                    mol_velocities_trn[3*ntrajsteps*i + ntrajsteps*dim + t] = velocities[dim];
-                    omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*dim + t] = 0;
+                    mol_velocities_sqrt_m_trn[3*ntrajsteps*i + ntrajsteps*dim + t] = velocities[dim] * sqrt(m_mass);
+                    mol_omegas_sqrt_i_rot[3*ntrajsteps*i + ntrajsteps*dim + t] = 0;
+                    atom_velocities_sqrt_m_vib[3*ntrajsteps*atom + ntrajsteps*dim + t] = 0;
                 }
-
-                for (int j=0; j<m_natoms; j++)
-                {
-                    int atom = m_firstatom + j;
-                    for (int dim=0; dim<3; dim++)
-                    {
-                        velocities_vib[3*ntrajsteps*atom + ntrajsteps*dim + t] = 0;
-                    }
-                }
-
                 continue;
             }
 
@@ -139,8 +135,8 @@ int decomposeVelocities (t_fileio* trj_in,
                 // output array
                 DPRINT("going to output mol_vel_trn\n");
                 DPRINT("i=%d t=%d\n", i, t);
-                mol_velocities_trn[3*ntrajsteps*i + ntrajsteps*dim + t] = mol_velocity_trn[dim];
-                DPRINT("finished output mol_vel_trn\n");
+                mol_velocities_sqrt_m_trn[3*ntrajsteps*i + ntrajsteps*dim + t] = mol_velocity_trn[dim] * sqrt(m_mass);
+                DPRINT("finished output mol_velocities_sqrt_m_trn\n");
 
                 center_of_mass[dim] = cblas_sdot(m_natoms,
                         &atom_mass[m_firstatom], 1,
@@ -148,7 +144,7 @@ int decomposeVelocities (t_fileio* trj_in,
                 center_of_mass[dim] /= m_mass;
             }
 
-            DPRINT("mol_velocities_trn: %8.4f%8.4f%8.4f\n",
+            DPRINT("mol_velocity_trn: %8.4f%8.4f%8.4f\n",
                     mol_velocity_trn[0],
                     mol_velocity_trn[1],
                     mol_velocity_trn[2]);
@@ -236,7 +232,7 @@ int decomposeVelocities (t_fileio* trj_in,
                 int atom = m_firstatom + j;
                 for (int dim=0; dim<3; dim++)
                 {
-                    velocities_vib[3*ntrajsteps*atom + ntrajsteps*dim + t] = velocity_vib[dim];
+                    atom_velocities_sqrt_m_vib[3*ntrajsteps*atom + ntrajsteps*dim + t] = velocity_vib[dim] * sqrt(atom_mass[atom]);
                 }
 
                 DPRINT("velocity_vib atom %d: %8.4f%8.4f%8.4f\n", j,
@@ -244,20 +240,6 @@ int decomposeVelocities (t_fileio* trj_in,
                         velocity_vib[1],
                         velocity_vib[2]);
             }
-
-            // diatomic molecule
-            // =================
-            if (m_natoms == 2)
-            {
-                for (int dim=0; dim<3; dim++)
-                {
-                    float sqrt_moi = sqrt(moi_tensor[3*dim+dim]);
-                    omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*dim + t] = angular_velocity[dim] * sqrt_moi;
-                    mol_moments_of_inertia[3*i+dim] += sqrt_moi;
-                }
-                continue;
-            }
-
 
             // calc moments of inertia and eigenvectors
             float eigenvectors[9] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
@@ -291,7 +273,7 @@ int decomposeVelocities (t_fileio* trj_in,
             float c[3] = {0.0, 0.0, 0.0};
 
             // about the abc_indicators
-            // two numbers define a, two define b, c is cross product of a and b
+            // two numbers define a, two define b', c is cross product of a and b', b is cross product of c and a
             // vector from atom(first number) to atom(second number)
             // second number can be -1 for com
             // c is always the cross product
@@ -309,8 +291,16 @@ int decomposeVelocities (t_fileio* trj_in,
                 if (m_abc_indicators[3] != -1)
                     b[dim] -= positions_rel[3*m_abc_indicators[3] + dim];
             }
+            // normalize a
+            cblas_sscal(3, 1/cblas_snrm2(3, &a[0], 1), &a[0], 1);
 
+            // calculate c and b
             crossProduct(a, b, c);
+            crossProduct(c, a, b);
+
+            // normalize b and c
+            cblas_sscal(3, 1/cblas_snrm2(3, &b[0], 1), &b[0], 1);
+            cblas_sscal(3, 1/cblas_snrm2(3, &c[0], 1), &c[0], 1);
 
             DPRINT("abc:\n");
             DPRINT("%f %f %f\n", a[0], a[1], a[2]);
@@ -344,18 +334,33 @@ int decomposeVelocities (t_fileio* trj_in,
             // calculate angular velocity new coord times squareroot of moi
             for (int dim=0; dim<3; dim++)
             {
-                // original
-                omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*dim + t] = angular_velocity_nc[dim] * sqrt(moments_of_inertia[dim]);
-                // this seems to work
-                //omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*dim + t] = angular_velocity[dim] * sqrt(moi_tensor[3*dim+dim]);
-                // this seems to work, too
-                //omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*dim + t] = angular_momentum[dim] / sqrt(moi_tensor[3*dim+dim]);
+                // 'f'ollowing the principal or abc axis; original method
+                if (m_rot_treat == 'f' || m_rot_treat == 'a')
+                {
+                    mol_omegas_sqrt_i_rot[3*ntrajsteps*i + ntrajsteps*dim + t] = angular_velocity_nc[dim] * sqrt(moments_of_inertia[dim]);
+                }
+                // 'a'bc as rotational axis; not implemented yet
+                else if (m_rot_treat == 'a')
+                {
+                    printf("rot_treat 'a'bc as rotational axis not implemented\n");
+                    exit(1);
+                }
+                // angular velocity ('o'mega) times sqrt(I); does not give total rotational energy
+                else if (m_rot_treat == 'o')
+                {
+                    mol_omegas_sqrt_i_rot[3*ntrajsteps*i + ntrajsteps*dim + t] = angular_velocity[dim] * sqrt(moi_tensor[3*dim+dim]);
+                }
+                // angular momentum ('l') / sqrt(I); does not give total rotational energy
+                else if (m_rot_treat == 'l')
+                {
+                    mol_omegas_sqrt_i_rot[3*ntrajsteps*i + ntrajsteps*dim + t] = angular_momentum[dim] / sqrt(moi_tensor[3*dim+dim]);
+                }
 
             }
-            DPRINT("omegas_sqrt_i: %8.4f%8.4f%8.4f\n",
-                    omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*0 + t],
-                    omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*1 + t],
-                    omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*2 + t]);
+            DPRINT("mol_omegas_sqrt_i_rot: %8.4f%8.4f%8.4f\n",
+                    mol_omegas_sqrt_i_rot[3*ntrajsteps*i + ntrajsteps*0 + t],
+                    mol_omegas_sqrt_i_rot[3*ntrajsteps*i + ntrajsteps*1 + t],
+                    mol_omegas_sqrt_i_rot[3*ntrajsteps*i + ntrajsteps*2 + t]);
         }
 
         // print data for one frame
@@ -364,15 +369,16 @@ int decomposeVelocities (t_fileio* trj_in,
         {
             DPRINT("%5d%5d%5d%8.4f%8.4f%8.4f%8.4f%8.4f%8.4f%8.4f\n",
                     i, mol_natoms[i], mol_firstatom[i], mol_mass[i],
-                    mol_velocities_trn[3*ntrajsteps*i + ntrajsteps*0 + t], mol_velocities_trn[3*ntrajsteps*i + ntrajsteps*1 + t],
-                    mol_velocities_trn[3*ntrajsteps*i + ntrajsteps*2 + t], omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*0 + t],
-                    omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*1 + t], omegas_sqrt_i[3*ntrajsteps*i + ntrajsteps*2 + t]);
+                    mol_velocities_sqrt_m_trn[3*ntrajsteps*i + ntrajsteps*0 + t], mol_velocities_sqrt_m_trn[3*ntrajsteps*i + ntrajsteps*1 + t],
+                    mol_velocities_sqrt_m_trn[3*ntrajsteps*i + ntrajsteps*2 + t], mol_omegas_sqrt_i_rot[3*ntrajsteps*i + ntrajsteps*0 + t],
+                    mol_omegas_sqrt_i_rot[3*ntrajsteps*i + ntrajsteps*1 + t], mol_omegas_sqrt_i_rot[3*ntrajsteps*i + ntrajsteps*2 + t]);
         }
 
         DPRINT("Step %i (time %f) finished\n", t, time);
     }
 
-    #pragma omp parallel num_threads(8)
+    //#pragma omp parallel num_threads(8)
+    #pragma omp parallel
     {
         free(velocities);
         free(positions);
