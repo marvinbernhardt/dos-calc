@@ -11,7 +11,7 @@
 #include "verbPrintf.c"
 
 // CLI stuff
-const char* argp_program_version = "dos-calc develop";
+const char* argp_program_version = VERSION;
 const char* argp_program_bug_address = "<bernhardt@cpc.tu-darmstadt.de>";
 static char doc[] = "dos-calc -- a programm to calculate densities of states from trajectories";
 static char args_doc[] = "";
@@ -102,48 +102,77 @@ int main( int argc, char *argv[] )
     int result2 = 0;
 
     // start scanning
-    scanf("%d", &nsamples);
-    scanf("%d", &nblocks);
-    scanf("%ld", &nblocksteps);
+    verbPrintf(verbosity, "Start reading user input\n");
+    verbPrintf(verbosity, "Reading integers\n");
 
+    verbPrintf(verbosity, "nsamples: ");
+    scanf("%d", &nsamples);
+    verbPrintf(verbosity, "%d\n", nsamples);
+
+    verbPrintf(verbosity, "nblocks: ");
+    scanf("%d", &nblocks);
+    verbPrintf(verbosity, "%d\n", nblocks);
+
+    verbPrintf(verbosity, "nblocksteps: ");
+    scanf("%ld", &nblocksteps);
+    verbPrintf(verbosity, "%ld\n", nblocksteps);
     int nfftsteps = nblocksteps / 2 + 1;
 
+    verbPrintf(verbosity, "natoms: ");
     scanf("%d", &natoms);
-    scanf("%d", &nmols);
-    scanf("%d", &nmoltypes);
-
-    verbPrintf(verbosity, "Integers scanned:\n");
-    verbPrintf(verbosity, "%d\n", nsamples);
-    verbPrintf(verbosity, "%d\n", nblocks);
-    verbPrintf(verbosity, "%ld\n", nblocksteps);
     verbPrintf(verbosity, "%d\n", natoms);
+
+    verbPrintf(verbosity, "nmols: ");
+    scanf("%d", &nmols);
     verbPrintf(verbosity, "%d\n", nmols);
+
+    verbPrintf(verbosity, "nmoltypes: ");
+    scanf("%d", &nmoltypes);
     verbPrintf(verbosity, "%d\n", nmoltypes);
 
+    // scanning arrays
+    verbPrintf(verbosity, "Reading arrays\n");
+    verbPrintf(verbosity, "moltype_firstmol: ");
     int* moltype_firstmol = calloc(nmoltypes, sizeof(int));
     for (int h=0; h<nmoltypes; h++)
     {
         scanf("%d", &moltype_firstmol[h]);
     }
+    verbPrintf(verbosity, "%d ... \n", moltype_firstmol[0]);
 
+    verbPrintf(verbosity, "moltype_firstatom: ");
     int* moltype_firstatom = calloc(nmoltypes, sizeof(int));
     for (int h=0; h<nmoltypes; h++)
     {
         scanf("%d", &moltype_firstatom[h]);
     }
+    verbPrintf(verbosity, "%d ... \n", moltype_firstatom[0]);
 
+    verbPrintf(verbosity, "moltype_nmols: ");
     int* moltype_nmols = calloc(nmoltypes, sizeof(int));
     for (int h=0; h<nmoltypes; h++)
     {
         scanf("%d", &moltype_nmols[h]);
     }
+    verbPrintf(verbosity, "%d ... \n", moltype_nmols[0]);
 
+    verbPrintf(verbosity, "moltype_natomtypes: ");
     int* moltype_natomtypes = calloc(nmoltypes, sizeof(int));
     for (int h=0; h<nmoltypes; h++)
     {
         scanf("%d", &moltype_natomtypes[h]);
     }
+    verbPrintf(verbosity, "%d ... \n", moltype_natomtypes[0]);
 
+    verbPrintf(verbosity, "moltype_rot_treat: ");
+    char* moltype_rot_treat = calloc(nmoltypes, sizeof(char));
+    for (int h=0; h<nmoltypes; h++)
+    {
+        scanf(" %c", &moltype_rot_treat[h]);
+    }
+    verbPrintf(verbosity, "%c ... \n", moltype_rot_treat[0]);
+
+    verbPrintf(verbosity, "moltype_abc_indicators: ");
     int* moltype_abc_indicators = calloc(nmoltypes * 4, sizeof(int));
     for (int h=0; h<nmoltypes; h++)
     {
@@ -152,36 +181,47 @@ int main( int argc, char *argv[] )
             scanf("%d", &moltype_abc_indicators[4*h + i]);
         }
     }
+    verbPrintf(verbosity, "%d %d %d %d ... \n", moltype_abc_indicators[0], moltype_abc_indicators[1], moltype_abc_indicators[2], moltype_abc_indicators[3]);
 
+    verbPrintf(verbosity, "mol_firstatom: ");
     int* mol_firstatom = calloc(nmols, sizeof(int));
     for (int i=0; i<nmols; i++)
     {
         scanf("%d", &mol_firstatom[i]);
     }
+    verbPrintf(verbosity, "%d ... \n", mol_firstatom[0]);
 
+    verbPrintf(verbosity, "mol_natoms: ");
     int* mol_natoms = calloc(nmols, sizeof(int));
     for (int i=0; i<nmols; i++)
     {
         scanf("%d", &mol_natoms[i]);
     }
+    verbPrintf(verbosity, "%d ... \n", mol_natoms[0]);
 
+    verbPrintf(verbosity, "mol_mass: ");
     float* mol_mass = calloc(nmols, sizeof(float));
     for (int i=0; i<nmols; i++)
     {
         scanf("%f", &mol_mass[i]);
     }
+    verbPrintf(verbosity, "%f ... \n", mol_mass[0]);
 
+    verbPrintf(verbosity, "mol_moltypenr: ");
     int* mol_moltypenr = calloc(nmols, sizeof(int));
     for (int i=0; i<nmols; i++)
     {
         scanf("%d", &mol_moltypenr[i]);
     }
+    verbPrintf(verbosity, "%d ... \n", mol_moltypenr[0]);
 
+    verbPrintf(verbosity, "atom_mass: ");
     float* atom_mass = calloc(natoms, sizeof(float));
     for (int j=0; j<natoms; j++)
     {
         scanf("%f", &atom_mass[j]);
     }
+    verbPrintf(verbosity, "%f ... \n", atom_mass[0]);
 
     // open file
     verbPrintf(verbosity, "starting with file %s\n", arguments.file);
@@ -220,9 +260,9 @@ int main( int argc, char *argv[] )
             verbPrintf(verbosity, "now doing block %d\n", block);
             verbPrintf(verbosity, "start decomposition\n");
 
-            float* mol_velocities_trn = calloc(nmols*3*nblocksteps, sizeof(float));
-            float* omegas_sqrt_i = calloc(nmols*3*nblocksteps, sizeof(float));
-            float* velocities_vib = calloc(natoms*3*nblocksteps, sizeof(float));
+            float* mol_velocities_sqrt_m_trn = calloc(nmols*3*nblocksteps, sizeof(float));
+            float* mol_omegas_sqrt_i_rot = calloc(nmols*3*nblocksteps, sizeof(float));
+            float* atom_velocities_sqrt_m_vib = calloc(natoms*3*nblocksteps, sizeof(float));
 
             result = decomposeVelocities (trj_in,
                     header,
@@ -236,17 +276,18 @@ int main( int argc, char *argv[] )
                     atom_mass,
                     mol_mass,
                     moltype_natomtypes,
+                    moltype_rot_treat,
                     moltype_abc_indicators,
-                    mol_velocities_trn,
-                    omegas_sqrt_i,
-                    velocities_vib,
+                    mol_velocities_sqrt_m_trn,
+                    mol_omegas_sqrt_i_rot,
+                    atom_velocities_sqrt_m_vib,
                     mol_moments_of_inertia);
 
             // dump first block only!
             if (arguments.dump_vel == 1 && block == 0)
             {
                 verbPrintf(verbosity, "start dumping (first block only)\n");
-                f = fopen("mol_omega_sqrt_i.txt", "w");
+                f = fopen("mol_omegas_sqrt_i_rot.txt", "w");
                 for (int h=0; h<nmoltypes; h++)
                 {
                     int first_dof = moltype_firstmol[h]*3;
@@ -256,14 +297,14 @@ int main( int argc, char *argv[] )
                         for (int t=0; t<nblocksteps; t++)
                         {
                             if (t!=0) fprintf(f, " ");
-                            fprintf(f, "%f", omegas_sqrt_i[i*nblocksteps + t]);
+                            fprintf(f, "%f", mol_omegas_sqrt_i_rot[i*nblocksteps + t]);
                         }
                         fprintf(f, "\n");
                     }
                 }
                 fclose(f);
 
-                f = fopen("mol_velocities.txt", "w");
+                f = fopen("mol_velocities_sqrt_m_trn.txt", "w");
                 for (int h=0; h<nmoltypes; h++)
                 {
                     int first_dof = moltype_firstmol[h]*3;
@@ -273,14 +314,14 @@ int main( int argc, char *argv[] )
                         for (int t=0; t<nblocksteps; t++)
                         {
                             if (t!=0) fprintf(f, " ");
-                            fprintf(f, "%f", mol_velocities_trn[i*nblocksteps + t]);
+                            fprintf(f, "%f", mol_velocities_sqrt_m_trn[i*nblocksteps + t]);
                         }
                         fprintf(f, "\n");
                     }
                 }
                 fclose(f);
 
-                f = fopen("atom_velocities_vib.txt", "w");
+                f = fopen("atom_velocities_sqrt_m_vib.txt", "w");
                 for (int h=0; h<nmoltypes; h++)
                 {
                     int first_dof_vib = moltype_firstatom[h]*3;
@@ -290,7 +331,7 @@ int main( int argc, char *argv[] )
                         for (int t=0; t<nblocksteps; t++)
                         {
                             if (t!=0) fprintf(f, " ");
-                            fprintf(f, "%f", velocities_vib[i*nblocksteps + t]);
+                            fprintf(f, "%f", atom_velocities_sqrt_m_vib[i*nblocksteps + t]);
                         }
                         fprintf(f, "\n");
                     }
@@ -306,11 +347,10 @@ int main( int argc, char *argv[] )
                     moltype_firstatom,
                     moltype_nmols,
                     moltype_natomtypes,
-                    atom_mass,
-                    mol_velocities_trn,
-                    omegas_sqrt_i,
-                    velocities_vib,
-                    moltype_dos_raw_trn,
+                    mol_velocities_sqrt_m_trn,
+                    mol_omegas_sqrt_i_rot,
+                    atom_velocities_sqrt_m_vib,
+                    moltype_dos_raw_trn, //output
                     moltype_dos_raw_rot,
                     moltype_dos_raw_rot_a,
                     moltype_dos_raw_rot_b,
@@ -318,9 +358,9 @@ int main( int argc, char *argv[] )
                     moltype_dos_raw_vib);
 
             //free velocities
-            free(mol_velocities_trn);
-            free(omegas_sqrt_i);
-            free(velocities_vib);
+            free(mol_velocities_sqrt_m_trn);
+            free(mol_omegas_sqrt_i_rot);
+            free(atom_velocities_sqrt_m_vib);
         }
         verbPrintf(verbosity, "finished all blocks\n");
 

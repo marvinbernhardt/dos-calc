@@ -27,10 +27,9 @@ int DOSCalculation (int nmoltypes,
         int* moltype_firstatom,
         int* moltype_nmols,
         int* moltype_natomtypes,
-        float* atom_mass,
-        float* mol_velocities_trn,
-        float* omegas_sqrt_i,
-        float* velocities_vib,
+        float* mol_velocities_sqrt_m_trn,
+        float* mol_omegas_sqrt_i_rot,
+        float* atom_velocities_sqrt_m_vib,
         float* moltype_dos_raw_trn,
         float* moltype_dos_raw_rot,
         float* moltype_dos_raw_rot_a,
@@ -54,7 +53,7 @@ int DOSCalculation (int nmoltypes,
         for (int i=first_dof; i<last_dof; i++)
         {
             DPRINT("translational dof nr %d\n", i);
-            memcpy(fft_in, &mol_velocities_trn[i*ntrajsteps], ntrajsteps * sizeof(float) );
+            memcpy(fft_in, &mol_velocities_sqrt_m_trn[i*ntrajsteps], ntrajsteps * sizeof(float) );
             fftwf_execute(p);
 
             DPRINT("abs and square of fft\n");
@@ -67,7 +66,7 @@ int DOSCalculation (int nmoltypes,
                     &moltype_dos_raw_trn[h*nfftsteps], 1);
 
             DPRINT("rotational dof nr %d\n", i);
-            memcpy(fft_in, &omegas_sqrt_i[i*ntrajsteps], ntrajsteps * sizeof(float) );
+            memcpy(fft_in, &mol_omegas_sqrt_i_rot[i*ntrajsteps], ntrajsteps * sizeof(float) );
             fftwf_execute(p);
 
             DPRINT("abs and square of fft\n");
@@ -90,13 +89,13 @@ int DOSCalculation (int nmoltypes,
         for (int i=first_dof_vib; i<last_dof_vib; i++)
         {
             DPRINT("vibrational dof nr %d\n", i);
-            memcpy(fft_in, &velocities_vib[i*ntrajsteps], ntrajsteps * sizeof(float) );
+            memcpy(fft_in, &atom_velocities_sqrt_m_vib[i*ntrajsteps], ntrajsteps * sizeof(float) );
             fftwf_execute(p);
 
             DPRINT("abs and square of fft\n");
             for (int t=0; t<nfftsteps; t++)
             {
-                fft_out_squared[t] = atom_mass[i/3] * cabs(fft_out[t] * fft_out[t]);
+                fft_out_squared[t] = cabs(fft_out[t] * fft_out[t]);
             }
 
             cblas_saxpy(nfftsteps, 1.0, fft_out_squared, 1,

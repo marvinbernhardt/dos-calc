@@ -1,4 +1,4 @@
-void crossProduct(float* x, float* y, float* c) 
+void crossProduct(float* x, float* y, float* c)
 {
     c[0] = x[1] * y[2] - x[2] * y[1];
     c[1] = x[2] * y[0] - x[0] * y[2];
@@ -6,9 +6,10 @@ void crossProduct(float* x, float* y, float* c)
     return;
 }
 
-void moiTensor(int mol_natoms, float* pos, float* atom_mass, float* tensor) 
+void moiTensor(int mol_natoms, float* pos, float* atom_mass, float* tensor)
 {
     int a, b, j;
+    for (a=0; a<9; a++) tensor[a] = 0.0;
     for (a=0; a<3; a++)
     {
         for (b=0; b<3; b++)
@@ -16,9 +17,9 @@ void moiTensor(int mol_natoms, float* pos, float* atom_mass, float* tensor)
             for (j=0; j<mol_natoms; j++)
             {
                 if (a == b)
-                    tensor[3*a+b] += atom_mass[j] * ((pos[3*j+0]*pos[3*j+0] 
-                                                      + pos[3*j+1]*pos[3*j+1] 
-                                                      + pos[3*j+2]*pos[3*j+2]) 
+                    tensor[3*a+b] += atom_mass[j] * ((pos[3*j+0]*pos[3*j+0]
+                                                      + pos[3*j+1]*pos[3*j+1]
+                                                      + pos[3*j+2]*pos[3*j+2])
                                                      - pos[3*j+a] * pos[3*j+b]);
                 else
                     tensor[3*a+b] += atom_mass[j] * (- pos[3*j+a] * pos[3*j+b]);
@@ -31,7 +32,7 @@ void moiTensor(int mol_natoms, float* pos, float* atom_mass, float* tensor)
 void inverseMatrix3x3(float* m, float* minv)
 {
     float det = (m[0*3 + 0] * (m[1*3 + 1] * m[2*3 + 2] - m[2*3 + 1] * m[1*3 + 2])
-                 - m[0*3 + 1] * (m[1*3 + 0] * m[2*3 + 2] - m[1*3 + 2] * m[2*3 + 0]) 
+                 - m[0*3 + 1] * (m[1*3 + 0] * m[2*3 + 2] - m[1*3 + 2] * m[2*3 + 0])
                  + m[0*3 + 2] * (m[1*3 + 0] * m[2*3 + 1] - m[1*3 + 1] * m[2*3 + 0]));
     float invdet = 1 / det;
 
