@@ -7,11 +7,11 @@ atomtypes = [{'name': 'O',  'mass': 15.9994},
              {'name': 'H',  'mass':  1.008}]
 
 simpletop = [{'name': "SOL", 'atoms': [atomtypes[j] for j in [0, 1, 1]], 'nmols': 500,
-              'sigma': 2, 'abc_indicators': [1, 2, 0, -1]}]
+              'sigma': 2, 'abc_indicators': [1, 2, 0, -1], 'rot_treat': 'f'}]
 
 nsamples = 1
 nblocks = 1
-nblocksteps = 30
+nblocksteps = 1000
 outputfile = "params.txt"
 # stop modifying here
 
