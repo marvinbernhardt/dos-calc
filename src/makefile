@@ -1,7 +1,11 @@
 PREFIX := $$HOME
 OBJ := dos-calc.c
-PROGRAM := dos-calc-devel
-GIT_VERSION := develop-$(shell git describe --abbrev=4 --dirty --always --tags)
+ifneq ($(shell git rev-parse --abbrev-ref HEAD),master)
+	PROGRAM := dos-calc-$(shell git branch | grep \* | cut -d ' ' -f2)
+else
+	PROGRAM := dos-calc
+endif
+GIT_VERSION := $(shell git branch | grep \* | cut -d ' ' -f2)-$(shell git describe --abbrev=4 --dirty --always --tags)
 
 CFLAGS := -Wall -O3 -fopenmp -std=gnu99 -DVERSION=\"$(GIT_VERSION)\"
 LDFLAGS := -lgromacs -llapacke -llapack -lcblas -lblas -lfftw3f -lm -lgfortran
