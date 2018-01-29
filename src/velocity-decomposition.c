@@ -39,12 +39,12 @@ int decomposeVelocities (t_fileio* trj_in,
         int* mol_firstatom,
         int* mol_natoms,
         int* mol_moltypenr,
-        float* atom_mass,
+        float** moltypes_atommasses,
         float* mol_mass,
-        int* moltype_natomtypes,
+        int* moltype_natomspermol,
         char* moltype_rot_treat,
-        int* moltype_abc_indicators,
-        float* mol_velocities_sqrt_m_trn, //output
+        int** moltype_abc_indicators,
+        float* mol_velocities_sqrt_m_trn,  // from here output
         float* mol_omegas_sqrt_i_rot,
         float* atom_velocities_sqrt_m_vib,
         float* mol_moments_of_inertia)
@@ -66,7 +66,6 @@ int decomposeVelocities (t_fileio* trj_in,
     static float* velocities_rot;
     #pragma omp threadprivate(positions, velocities, positions_rel, velocities_rot)
 
-    //#pragma omp parallel num_threads(8)
     #pragma omp parallel
     {
         // allocate positions, velocities (work arrays private to each thread)
@@ -90,7 +89,6 @@ int decomposeVelocities (t_fileio* trj_in,
 
 
         // loop over molecules
-        //#pragma omp parallel for num_threads(8)
         #pragma omp parallel
         for (int i=0; i<nmols; i++)
         {
@@ -99,7 +97,8 @@ int decomposeVelocities (t_fileio* trj_in,
             int m_natoms = mol_natoms[i];
             int m_moltype = mol_moltypenr[i];
             float m_mass = mol_mass[i];
-            int* m_abc_indicators = &moltype_abc_indicators[4 * m_moltype];
+            float* m_atommasses = moltypes_atommasses[m_moltype];
+            int* m_abc_indicators = moltype_abc_indicators[m_moltype];
             char m_rot_treat = moltype_rot_treat[m_moltype];
 
             // read atoms of one molecule
@@ -142,7 +141,7 @@ int decomposeVelocities (t_fileio* trj_in,
             for (int dim=0; dim<3; dim++)
             {
                 mol_velocity_trn[dim] = cblas_sdot(m_natoms,
-                        &atom_mass[m_firstatom], 1,
+                        m_atommasses, 1,
                         &velocities[0+dim], 3);
                 mol_velocity_trn[dim] /= m_mass;
 
@@ -150,7 +149,7 @@ int decomposeVelocities (t_fileio* trj_in,
                 mol_velocities_sqrt_m_trn[3*ntrajsteps*i + ntrajsteps*dim + t] = mol_velocity_trn[dim] * sqrt(m_mass);
 
                 center_of_mass[dim] = cblas_sdot(m_natoms,
-                        &atom_mass[m_firstatom], 1,
+                        m_atommasses, 1,
                         &positions[0+dim], 3);
                 center_of_mass[dim] /= m_mass;
             }
@@ -183,7 +182,7 @@ int decomposeVelocities (t_fileio* trj_in,
                 crossProduct(&positions_rel[3*j], &velocities[3*j], cross_product);
                 for (int dim=0; dim<3; dim++)
                 {
-                    angular_momentum[dim] += atom_mass[m_firstatom+j] * cross_product[dim];
+                    angular_momentum[dim] += m_atommasses[j] * cross_product[dim];
                 }
             }
 
@@ -193,7 +192,7 @@ int decomposeVelocities (t_fileio* trj_in,
 
             // calc moi tensor
             float moi_tensor[9] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-            moiTensor(m_natoms, positions_rel, &atom_mass[m_firstatom], moi_tensor);
+            moiTensor(m_natoms, positions_rel, m_atommasses, moi_tensor);
 
             DPRINT("moi Tensor:\n");
             DPRINT("%f %f %f\n", moi_tensor[0], moi_tensor[1], moi_tensor[2]);
@@ -262,7 +261,7 @@ int decomposeVelocities (t_fileio* trj_in,
                 int atom = m_firstatom + j;
                 for (int dim=0; dim<3; dim++)
                 {
-                    atom_velocities_sqrt_m_vib[3*ntrajsteps*atom + ntrajsteps*dim + t] = velocity_vib[dim] * sqrt(atom_mass[atom]);
+                    atom_velocities_sqrt_m_vib[3*ntrajsteps*atom + ntrajsteps*dim + t] = velocity_vib[dim] * sqrt(m_atommasses[j]);
                 }
 
                 DPRINT("velocity_vib atom %d: %8.4f%8.4f%8.4f\n", j,

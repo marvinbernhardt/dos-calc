@@ -6,11 +6,13 @@ import gromacstools as gt
 atomtypes = [{'name': 'O',  'mass': 15.9994},
              {'name': 'H',  'mass':  1.008}]
 
-simpletop = [{'name': "SOL", 'atoms': [atomtypes[j] for j in [0, 1, 1]], 'nmols': 500,
-              'sigma': 2, 'abc_indicators': [1, 2, 0, -1], 'rot_treat': 'f'}]
+simpletop = [{'name': "SOL", 'atoms': [atomtypes[j] for j in [0, 1, 1]], 'nmols': 5,
+              'sigma': 2, 'abc_indicators': [1, 2, 0, -1], 'rot_treat': 'f'},
+             {'name': "H2O2", 'atoms': [atomtypes[j] for j in [1, 0, 0, 1]], 'nmols': 2,
+              'sigma': 2, 'abc_indicators': [0, 3, 1, -1], 'rot_treat': 'f'}]
 
-nsamples = 1
-nblocks = 1
+nsamples = 2
+nblocks = 2
 nblocksteps = 1000
 outputfile = "params.txt"
 # stop modifying here
