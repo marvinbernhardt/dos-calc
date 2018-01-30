@@ -25,7 +25,8 @@ static struct argp_option options[] = {
 
 struct arguments
 {
-    bool verbosity, dump_vel;
+    bool verbosity;
+    bool dump_vel;
     char *file;
 };
 
@@ -87,9 +88,11 @@ int main( int argc, char *argv[] )
     int nsamples;
     int nblocks;
     long nblocksteps;
+    int nmoltypes;
+
+    // convenience variables
     int natoms;
     int nmols;
-    int nmoltypes;
 
     // file pointers for output
     FILE* f;
@@ -118,110 +121,95 @@ int main( int argc, char *argv[] )
     verbPrintf(verbosity, "%ld\n", nblocksteps);
     int nfftsteps = nblocksteps / 2 + 1;
 
-    verbPrintf(verbosity, "natoms: ");
-    scanf("%d", &natoms);
-    verbPrintf(verbosity, "%d\n", natoms);
-
-    verbPrintf(verbosity, "nmols: ");
-    scanf("%d", &nmols);
-    verbPrintf(verbosity, "%d\n", nmols);
-
     verbPrintf(verbosity, "nmoltypes: ");
     scanf("%d", &nmoltypes);
     verbPrintf(verbosity, "%d\n", nmoltypes);
 
-    // scanning arrays
-    verbPrintf(verbosity, "Reading arrays\n");
-    verbPrintf(verbosity, "moltype_firstmol: ");
-    int* moltype_firstmol = calloc(nmoltypes, sizeof(int));
-    for (int h=0; h<nmoltypes; h++)
-    {
-        scanf("%d", &moltype_firstmol[h]);
-    }
-    verbPrintf(verbosity, "%d ... \n", moltype_firstmol[0]);
+    // scanning moltypes
+    int* moltypes_nmols = calloc(nmoltypes, sizeof(int));
+    int* moltypes_natomspermol = calloc(nmoltypes, sizeof(int));
+    float** moltypes_atommasses = (float**) malloc(nmoltypes * sizeof(float *));
+    char* moltypes_rot_treat = calloc(nmoltypes, sizeof(char));
+    int** moltypes_abc_indicators = (int**) malloc(nmoltypes * sizeof(int *));
 
-    verbPrintf(verbosity, "moltype_firstatom: ");
-    int* moltype_firstatom = calloc(nmoltypes, sizeof(int));
     for (int h=0; h<nmoltypes; h++)
     {
-        scanf("%d", &moltype_firstatom[h]);
-    }
-    verbPrintf(verbosity, "%d ... \n", moltype_firstatom[0]);
+        verbPrintf(verbosity, "now reading moltype %d of %d.\n", h+1, nmoltypes);
 
-    verbPrintf(verbosity, "moltype_nmols: ");
-    int* moltype_nmols = calloc(nmoltypes, sizeof(int));
-    for (int h=0; h<nmoltypes; h++)
-    {
-        scanf("%d", &moltype_nmols[h]);
-    }
-    verbPrintf(verbosity, "%d ... \n", moltype_nmols[0]);
+        verbPrintf(verbosity, "moltype %d nmols: ", h+1);
+        scanf("%d", &moltypes_nmols[h]);
+        verbPrintf(verbosity, "%d\n", moltypes_nmols[h]);
 
-    verbPrintf(verbosity, "moltype_natomtypes: ");
-    int* moltype_natomtypes = calloc(nmoltypes, sizeof(int));
-    for (int h=0; h<nmoltypes; h++)
-    {
-        scanf("%d", &moltype_natomtypes[h]);
-    }
-    verbPrintf(verbosity, "%d ... \n", moltype_natomtypes[0]);
+        verbPrintf(verbosity, "moltype %d natomspermol: ", h+1);
+        scanf("%d", &moltypes_natomspermol[h]);
+        verbPrintf(verbosity, "%d\n", moltypes_natomspermol[h]);
 
-    verbPrintf(verbosity, "moltype_rot_treat: ");
-    char* moltype_rot_treat = calloc(nmoltypes, sizeof(char));
-    for (int h=0; h<nmoltypes; h++)
-    {
-        scanf(" %c", &moltype_rot_treat[h]);
-    }
-    verbPrintf(verbosity, "%c ... \n", moltype_rot_treat[0]);
-
-    verbPrintf(verbosity, "moltype_abc_indicators: ");
-    int* moltype_abc_indicators = calloc(nmoltypes * 4, sizeof(int));
-    for (int h=0; h<nmoltypes; h++)
-    {
-        for (int i=0; i<4; i++)
+        verbPrintf(verbosity, "moltype %d atommasses: ", h+1);
+        moltypes_atommasses[h] = (float*) malloc(moltypes_natomspermol[h] * sizeof(float));
+        for (int j=0; j<moltypes_natomspermol[h]; j++)
         {
-            scanf("%d", &moltype_abc_indicators[4*h + i]);
+            scanf("%f", &moltypes_atommasses[h][j]);
+        }
+        for (int j=0; j<moltypes_natomspermol[h]; j++)
+        {
+            verbPrintf(verbosity, "%f ", moltypes_atommasses[h][j]);
+        }
+        verbPrintf(verbosity, "\n");
+
+        verbPrintf(verbosity, "moltype %d rot_treat: ", h+1);
+        scanf(" %c", &moltypes_rot_treat[h]);
+        verbPrintf(verbosity, "%c\n", moltypes_rot_treat[h]);
+
+        verbPrintf(verbosity, "moltype %d abc_indicators: ", h+1);
+        moltypes_abc_indicators[h] = (int*) malloc(4 * sizeof(int));
+        for (int j=0; j<4; j++)
+        {
+            scanf("%d", &moltypes_abc_indicators[h][j]);
+        }
+        verbPrintf(verbosity, "%d %d %d %d\n", moltypes_abc_indicators[h][0], moltypes_abc_indicators[h][1], moltypes_abc_indicators[h][2], moltypes_abc_indicators[h][3]);
+    }
+
+
+    // generate convenience variables and arrays
+    nmols = 0;
+    natoms = 0;
+    int* moltypes_firstmol = calloc(nmoltypes, sizeof(int));
+    int* moltypes_firstatom = calloc(nmoltypes, sizeof(int));
+
+    for (int h=0; h<nmoltypes; h++)
+    {
+        moltypes_firstmol[h] = nmols;
+        moltypes_firstatom[h] = natoms;
+        nmols += moltypes_nmols[h];
+        natoms += moltypes_nmols[h] * moltypes_natomspermol[h];
+    }
+
+    int* mols_moltypenr = calloc(nmols, sizeof(int));
+    int* mols_natoms = calloc(nmols, sizeof(int));
+    float* mols_mass = calloc(nmols, sizeof(float));
+
+    for (int i=0; i<nmols; i++)
+    {
+        for (int h=0; h<nmoltypes; h++)
+        {
+            if (i >= moltypes_firstmol[h] && i < moltypes_firstmol[h] + moltypes_nmols[h])
+                mols_moltypenr[i] = h;
+        }
+        mols_natoms[i] = moltypes_natomspermol[mols_moltypenr[i]];
+        mols_mass[i] = 0;
+        for (int j=0; j<mols_natoms[i]; j++)
+            mols_mass[i] += moltypes_atommasses[mols_moltypenr[i]][j];
+    }
+
+    int* mols_firstatom = calloc(nmols, sizeof(int));
+    for (int h=0; h<nmoltypes; h++)
+    {
+        for (int ii=0; ii<moltypes_nmols[h]; ii++)
+        {
+            mols_firstatom[moltypes_firstmol[h]+ii] = moltypes_firstatom[h] + moltypes_natomspermol[h] * ii;
         }
     }
-    verbPrintf(verbosity, "%d %d %d %d ... \n", moltype_abc_indicators[0], moltype_abc_indicators[1], moltype_abc_indicators[2], moltype_abc_indicators[3]);
 
-    verbPrintf(verbosity, "mol_firstatom: ");
-    int* mol_firstatom = calloc(nmols, sizeof(int));
-    for (int i=0; i<nmols; i++)
-    {
-        scanf("%d", &mol_firstatom[i]);
-    }
-    verbPrintf(verbosity, "%d ... \n", mol_firstatom[0]);
-
-    verbPrintf(verbosity, "mol_natoms: ");
-    int* mol_natoms = calloc(nmols, sizeof(int));
-    for (int i=0; i<nmols; i++)
-    {
-        scanf("%d", &mol_natoms[i]);
-    }
-    verbPrintf(verbosity, "%d ... \n", mol_natoms[0]);
-
-    verbPrintf(verbosity, "mol_mass: ");
-    float* mol_mass = calloc(nmols, sizeof(float));
-    for (int i=0; i<nmols; i++)
-    {
-        scanf("%f", &mol_mass[i]);
-    }
-    verbPrintf(verbosity, "%f ... \n", mol_mass[0]);
-
-    verbPrintf(verbosity, "mol_moltypenr: ");
-    int* mol_moltypenr = calloc(nmols, sizeof(int));
-    for (int i=0; i<nmols; i++)
-    {
-        scanf("%d", &mol_moltypenr[i]);
-    }
-    verbPrintf(verbosity, "%d ... \n", mol_moltypenr[0]);
-
-    verbPrintf(verbosity, "atom_mass: ");
-    float* atom_mass = calloc(natoms, sizeof(float));
-    for (int j=0; j<natoms; j++)
-    {
-        scanf("%f", &atom_mass[j]);
-    }
-    verbPrintf(verbosity, "%f ... \n", atom_mass[0]);
 
     // open file
     verbPrintf(verbosity, "starting with file %s\n", arguments.file);
@@ -247,12 +235,12 @@ int main( int argc, char *argv[] )
 
         // output arrays
         float* mol_moments_of_inertia = calloc(nmols*3, sizeof(float));
-        float* moltype_dos_raw_trn = calloc(nmoltypes*nfftsteps, sizeof(float));
-        float* moltype_dos_raw_rot = calloc(nmoltypes*nfftsteps, sizeof(float));
-        float* moltype_dos_raw_rot_a = calloc(nmoltypes*nfftsteps, sizeof(float));
-        float* moltype_dos_raw_rot_b = calloc(nmoltypes*nfftsteps, sizeof(float));
-        float* moltype_dos_raw_rot_c = calloc(nmoltypes*nfftsteps, sizeof(float));
-        float* moltype_dos_raw_vib = calloc(nmoltypes*nfftsteps, sizeof(float));
+        float* moltypes_dos_raw_trn = calloc(nmoltypes*nfftsteps, sizeof(float));
+        float* moltypes_dos_raw_rot = calloc(nmoltypes*nfftsteps, sizeof(float));
+        float* moltypes_dos_raw_rot_a = calloc(nmoltypes*nfftsteps, sizeof(float));
+        float* moltypes_dos_raw_rot_b = calloc(nmoltypes*nfftsteps, sizeof(float));
+        float* moltypes_dos_raw_rot_c = calloc(nmoltypes*nfftsteps, sizeof(float));
+        float* moltypes_dos_raw_vib = calloc(nmoltypes*nfftsteps, sizeof(float));
 
         verbPrintf(verbosity, "going through %d blocks\n", nblocks);
         for (int block=0; block<nblocks; block++)
@@ -270,14 +258,14 @@ int main( int argc, char *argv[] )
                     natoms,
                     nmols,
                     nmoltypes,
-                    mol_firstatom,
-                    mol_natoms,
-                    mol_moltypenr,
-                    atom_mass,
-                    mol_mass,
-                    moltype_natomtypes,
-                    moltype_rot_treat,
-                    moltype_abc_indicators,
+                    mols_firstatom,
+                    mols_natoms,
+                    mols_moltypenr,
+                    moltypes_atommasses,
+                    mols_mass,
+                    moltypes_natomspermol,
+                    moltypes_rot_treat,
+                    moltypes_abc_indicators,
                     mol_velocities_sqrt_m_trn,
                     mol_omegas_sqrt_i_rot,
                     atom_velocities_sqrt_m_vib,
@@ -290,8 +278,8 @@ int main( int argc, char *argv[] )
                 f = fopen("mol_omegas_sqrt_i_rot.txt", "w");
                 for (int h=0; h<nmoltypes; h++)
                 {
-                    int first_dof = moltype_firstmol[h]*3;
-                    int last_dof = moltype_firstmol[h]*3 + moltype_nmols[h]*3;
+                    int first_dof = moltypes_firstmol[h]*3;
+                    int last_dof = moltypes_firstmol[h]*3 + moltypes_nmols[h]*3;
                     for (int i=first_dof; i<last_dof; i++)
                     {
                         for (int t=0; t<nblocksteps; t++)
@@ -307,8 +295,8 @@ int main( int argc, char *argv[] )
                 f = fopen("mol_velocities_sqrt_m_trn.txt", "w");
                 for (int h=0; h<nmoltypes; h++)
                 {
-                    int first_dof = moltype_firstmol[h]*3;
-                    int last_dof = moltype_firstmol[h]*3 + moltype_nmols[h]*3;
+                    int first_dof = moltypes_firstmol[h]*3;
+                    int last_dof = moltypes_firstmol[h]*3 + moltypes_nmols[h]*3;
                     for (int i=first_dof; i<last_dof; i++)
                     {
                         for (int t=0; t<nblocksteps; t++)
@@ -324,8 +312,8 @@ int main( int argc, char *argv[] )
                 f = fopen("atom_velocities_sqrt_m_vib.txt", "w");
                 for (int h=0; h<nmoltypes; h++)
                 {
-                    int first_dof_vib = moltype_firstatom[h]*3;
-                    int last_dof_vib = moltype_firstatom[h]*3 + moltype_nmols[h]*moltype_natomtypes[h]*3;
+                    int first_dof_vib = moltypes_firstatom[h]*3;
+                    int last_dof_vib = moltypes_firstatom[h]*3 + moltypes_nmols[h]*moltypes_natomspermol[h]*3;
                     for (int i=first_dof_vib; i<last_dof_vib; i++)
                     {
                         for (int t=0; t<nblocksteps; t++)
@@ -343,19 +331,19 @@ int main( int argc, char *argv[] )
             result2 = DOSCalculation (nmoltypes,
                     nblocksteps,
                     nfftsteps,
-                    moltype_firstmol,
-                    moltype_firstatom,
-                    moltype_nmols,
-                    moltype_natomtypes,
+                    moltypes_firstmol,
+                    moltypes_firstatom,
+                    moltypes_nmols,
+                    moltypes_natomspermol,
                     mol_velocities_sqrt_m_trn,
                     mol_omegas_sqrt_i_rot,
                     atom_velocities_sqrt_m_vib,
-                    moltype_dos_raw_trn, //output
-                    moltype_dos_raw_rot,
-                    moltype_dos_raw_rot_a,
-                    moltype_dos_raw_rot_b,
-                    moltype_dos_raw_rot_c,
-                    moltype_dos_raw_vib);
+                    moltypes_dos_raw_trn, //output
+                    moltypes_dos_raw_rot,
+                    moltypes_dos_raw_rot_a,
+                    moltypes_dos_raw_rot_b,
+                    moltypes_dos_raw_rot_c,
+                    moltypes_dos_raw_vib);
 
             //free velocities
             free(mol_velocities_sqrt_m_trn);
@@ -366,12 +354,12 @@ int main( int argc, char *argv[] )
 
         // divide results by number of blocks (and number of blocksteps for the moi)
         cblas_sscal(nmols*3, 1.0 / (float) nblocks / (float) nblocksteps, mol_moments_of_inertia, 1);
-        cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltype_dos_raw_trn, 1);
-        cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltype_dos_raw_rot, 1);
-        cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltype_dos_raw_rot_a, 1);
-        cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltype_dos_raw_rot_b, 1);
-        cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltype_dos_raw_rot_c, 1);
-        cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltype_dos_raw_vib, 1);
+        cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltypes_dos_raw_trn, 1);
+        cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltypes_dos_raw_rot, 1);
+        cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltypes_dos_raw_rot_a, 1);
+        cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltypes_dos_raw_rot_b, 1);
+        cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltypes_dos_raw_rot_c, 1);
+        cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltypes_dos_raw_vib, 1);
 
         char filename[255] = {0};
         sprintf(filename, "sample%d_dos_trn.txt", sample);
@@ -382,7 +370,7 @@ int main( int argc, char *argv[] )
             for (int t=0; t<nfftsteps; t++)
             {
                 if (t!=0) fprintf(f, " ");
-                fprintf(f, "%f", moltype_dos_raw_trn[h*nfftsteps + t]);
+                fprintf(f, "%f", moltypes_dos_raw_trn[h*nfftsteps + t]);
             }
             fprintf(f, "\n");
         }
@@ -396,7 +384,7 @@ int main( int argc, char *argv[] )
             for (int t=0; t<nfftsteps; t++)
             {
                 if (t!=0) fprintf(f, " ");
-                fprintf(f, "%f", moltype_dos_raw_rot[h*nfftsteps + t]);
+                fprintf(f, "%f", moltypes_dos_raw_rot[h*nfftsteps + t]);
             }
             fprintf(f, "\n");
         }
@@ -419,9 +407,9 @@ int main( int argc, char *argv[] )
                 if (t!=0) fprintf(fa, " ");
                 if (t!=0) fprintf(fb, " ");
                 if (t!=0) fprintf(fc, " ");
-                fprintf(fa, "%f", moltype_dos_raw_rot_a[h*nfftsteps + t]);
-                fprintf(fb, "%f", moltype_dos_raw_rot_b[h*nfftsteps + t]);
-                fprintf(fc, "%f", moltype_dos_raw_rot_c[h*nfftsteps + t]);
+                fprintf(fa, "%f", moltypes_dos_raw_rot_a[h*nfftsteps + t]);
+                fprintf(fb, "%f", moltypes_dos_raw_rot_b[h*nfftsteps + t]);
+                fprintf(fc, "%f", moltypes_dos_raw_rot_c[h*nfftsteps + t]);
             }
             fprintf(fa, "\n");
             fprintf(fb, "\n");
@@ -438,7 +426,7 @@ int main( int argc, char *argv[] )
             for (int t=0; t<nfftsteps; t++)
             {
                 if (t!=0) fprintf(f, " ");
-                fprintf(f, "%f", moltype_dos_raw_vib[h*nfftsteps + t]);
+                fprintf(f, "%f", moltypes_dos_raw_vib[h*nfftsteps + t]);
             }
             fprintf(f, "\n");
         }
@@ -455,27 +443,35 @@ int main( int argc, char *argv[] )
 
         // free DoSes
         free(mol_moments_of_inertia);
-        free(moltype_dos_raw_trn);
-        free(moltype_dos_raw_rot);
-        free(moltype_dos_raw_rot_a);
-        free(moltype_dos_raw_rot_b);
-        free(moltype_dos_raw_rot_c);
-        free(moltype_dos_raw_vib);
+        free(moltypes_dos_raw_trn);
+        free(moltypes_dos_raw_rot);
+        free(moltypes_dos_raw_rot_a);
+        free(moltypes_dos_raw_rot_b);
+        free(moltypes_dos_raw_rot_c);
+        free(moltypes_dos_raw_vib);
 
     }
     verbPrintf(verbosity, "finished all samples\n");
 
-    // free input arrays
-    free(moltype_firstmol);
-    free(moltype_firstatom);
-    free(moltype_nmols);
-    free(moltype_natomtypes);
-    free(moltype_abc_indicators);
-    free(mol_firstatom);
-    free(mol_natoms);
-    free(mol_mass);
-    free(mol_moltypenr);
-    free(atom_mass);
+    // free arrays
+    free(moltypes_nmols);
+    free(moltypes_natomspermol);
+
+    for (int h=0; h<nmoltypes; h++)
+    {
+        free(moltypes_atommasses[h]);
+        free(moltypes_abc_indicators[h]);
+    }
+    free(moltypes_atommasses);
+    free(moltypes_abc_indicators);
+
+    free(moltypes_rot_treat);
+    free(moltypes_firstmol);
+    free(moltypes_firstatom);
+    free(mols_moltypenr);
+    free(mols_natoms);
+    free(mols_mass);
+    free(mols_firstatom);
 
     return result + result2;
 }

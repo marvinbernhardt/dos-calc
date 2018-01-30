@@ -16,6 +16,20 @@
 #define DPRINT(...)
 #endif
 
+
+float sqrt_neg_zero(float number)
+{
+    if (number < -0.001)
+    {
+        printf("angular_momentum and angular_velocity too different!\n");
+        exit(0);
+    }
+    else if (number < 0)
+        return 0;
+    else
+        return sqrt(number);
+}
+
 int decomposeVelocities (t_fileio* trj_in,
         gmx_trr_header_t header,
         long ntrajsteps,
@@ -25,12 +39,12 @@ int decomposeVelocities (t_fileio* trj_in,
         int* mol_firstatom,
         int* mol_natoms,
         int* mol_moltypenr,
-        float* atom_mass,
+        float** moltypes_atommasses,
         float* mol_mass,
-        int* moltype_natomtypes,
+        int* moltype_natomspermol,
         char* moltype_rot_treat,
-        int* moltype_abc_indicators,
-        float* mol_velocities_sqrt_m_trn, //output
+        int** moltype_abc_indicators,
+        float* mol_velocities_sqrt_m_trn,  // from here output
         float* mol_omegas_sqrt_i_rot,
         float* atom_velocities_sqrt_m_vib,
         float* mol_moments_of_inertia)
@@ -52,7 +66,6 @@ int decomposeVelocities (t_fileio* trj_in,
     static float* velocities_rot;
     #pragma omp threadprivate(positions, velocities, positions_rel, velocities_rot)
 
-    //#pragma omp parallel num_threads(8)
     #pragma omp parallel
     {
         // allocate positions, velocities (work arrays private to each thread)
@@ -76,7 +89,6 @@ int decomposeVelocities (t_fileio* trj_in,
 
 
         // loop over molecules
-        //#pragma omp parallel for num_threads(8)
         #pragma omp parallel
         for (int i=0; i<nmols; i++)
         {
@@ -85,7 +97,8 @@ int decomposeVelocities (t_fileio* trj_in,
             int m_natoms = mol_natoms[i];
             int m_moltype = mol_moltypenr[i];
             float m_mass = mol_mass[i];
-            int* m_abc_indicators = &moltype_abc_indicators[4 * m_moltype];
+            float* m_atommasses = moltypes_atommasses[m_moltype];
+            int* m_abc_indicators = moltype_abc_indicators[m_moltype];
             char m_rot_treat = moltype_rot_treat[m_moltype];
 
             // read atoms of one molecule
@@ -128,18 +141,15 @@ int decomposeVelocities (t_fileio* trj_in,
             for (int dim=0; dim<3; dim++)
             {
                 mol_velocity_trn[dim] = cblas_sdot(m_natoms,
-                        &atom_mass[m_firstatom], 1,
+                        m_atommasses, 1,
                         &velocities[0+dim], 3);
                 mol_velocity_trn[dim] /= m_mass;
 
-                // output array
-                DPRINT("going to output mol_vel_trn\n");
-                DPRINT("i=%d t=%d\n", i, t);
+                // output-array mol_velocities_sqrt_m_trn
                 mol_velocities_sqrt_m_trn[3*ntrajsteps*i + ntrajsteps*dim + t] = mol_velocity_trn[dim] * sqrt(m_mass);
-                DPRINT("finished output mol_velocities_sqrt_m_trn\n");
 
                 center_of_mass[dim] = cblas_sdot(m_natoms,
-                        &atom_mass[m_firstatom], 1,
+                        m_atommasses, 1,
                         &positions[0+dim], 3);
                 center_of_mass[dim] /= m_mass;
             }
@@ -172,7 +182,7 @@ int decomposeVelocities (t_fileio* trj_in,
                 crossProduct(&positions_rel[3*j], &velocities[3*j], cross_product);
                 for (int dim=0; dim<3; dim++)
                 {
-                    angular_momentum[dim] += atom_mass[m_firstatom+j] * cross_product[dim];
+                    angular_momentum[dim] += m_atommasses[j] * cross_product[dim];
                 }
             }
 
@@ -182,7 +192,7 @@ int decomposeVelocities (t_fileio* trj_in,
 
             // calc moi tensor
             float moi_tensor[9] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-            moiTensor(m_natoms, positions_rel, &atom_mass[m_firstatom], moi_tensor);
+            moiTensor(m_natoms, positions_rel, m_atommasses, moi_tensor);
 
             DPRINT("moi Tensor:\n");
             DPRINT("%f %f %f\n", moi_tensor[0], moi_tensor[1], moi_tensor[2]);
@@ -191,15 +201,34 @@ int decomposeVelocities (t_fileio* trj_in,
 
 
             // calc angular velocity
-            float moi_tensor_inv[9] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
             float angular_velocity[3] = {0.0, 0.0, 0.0};
-            inverseMatrix3x3(moi_tensor, moi_tensor_inv);
-            cblas_sgemv(CblasRowMajor, CblasNoTrans, 3, 3, 1.0,
-                    moi_tensor_inv, 3,
-                    angular_momentum, 1,
-                    0.0, angular_velocity, 1);
+            float moi_tensor_temp[9] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+            cblas_scopy(9, moi_tensor, 1, moi_tensor_temp, 1);
+            cblas_scopy(3, angular_momentum, 1, angular_velocity, 1);
 
-            DPRINT("angular velocity: %8.4f%8.4f%8.4f\n",
+            // linear molecules
+            if (m_natoms == 2 && m_rot_treat != 'l')
+            {
+                printf("For linear molecules rot_treat has to be 'l' (linear)\n");
+                exit(1);
+            }
+            else if (m_rot_treat == 'l')
+            {
+                // find angular velocity from underdetermined system of linear equations
+                float S[3] = {0.0, 0.0, 0.0};
+                int rank = 1337;
+
+                LAPACKE_sgelsd(LAPACK_ROW_MAJOR, 3, 3, 1, moi_tensor_temp, 3, angular_velocity, 1, S, 0.001, &rank);
+            }
+            // non-linear molecules
+            else
+            {
+                // find angular velocity from system of linear equations
+                int ipiv[3] = {0, 0, 0};
+                LAPACKE_sgesv(LAPACK_ROW_MAJOR, 3, 1, moi_tensor_temp, 3, ipiv, angular_velocity, 1);
+            }
+
+            DPRINT("angular velocity: %f %f %f\n",
                     angular_velocity[0], angular_velocity[1], angular_velocity[2]);
 
 
@@ -228,11 +257,11 @@ int decomposeVelocities (t_fileio* trj_in,
                 cblas_saxpy(3, -1.0, mol_velocity_trn, 1,
                         velocity_vib, 1);
 
-                // output array
+                // output-array atom_velocities_sqrt_m_vib
                 int atom = m_firstatom + j;
                 for (int dim=0; dim<3; dim++)
                 {
-                    atom_velocities_sqrt_m_vib[3*ntrajsteps*atom + ntrajsteps*dim + t] = velocity_vib[dim] * sqrt(atom_mass[atom]);
+                    atom_velocities_sqrt_m_vib[3*ntrajsteps*atom + ntrajsteps*dim + t] = velocity_vib[dim] * sqrt(m_atommasses[j]);
                 }
 
                 DPRINT("velocity_vib atom %d: %8.4f%8.4f%8.4f\n", j,
@@ -240,6 +269,32 @@ int decomposeVelocities (t_fileio* trj_in,
                         velocity_vib[1],
                         velocity_vib[2]);
             }
+
+            // linear molecules
+            if (m_rot_treat == 'l')
+            {
+                for (int dim=0; dim<3; dim++)
+                {
+                    /*
+                    if (copysignf(1.0, angular_velocity[dim]) != copysignf(1.0, angular_momentum[dim]))
+                    {
+                        printf("angular velocity and angular_momentum don't point in the same direction!\n");
+                        exit(1);
+                    }
+                    */
+
+                    mol_omegas_sqrt_i_rot[3*ntrajsteps*i + ntrajsteps*dim + t] = copysignf(sqrt_neg_zero(angular_velocity[dim] * angular_momentum[dim]), angular_velocity[dim]);
+                }
+
+                // save moments of inertia for each molecule
+                for (int dim=0; dim<3; dim++)
+                {
+                    mol_moments_of_inertia[3*i+dim] += moi_tensor[3*dim+dim];
+                }
+
+                continue;
+            }
+
 
             // calc moments of inertia and eigenvectors
             float eigenvectors[9] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
@@ -383,21 +438,22 @@ int decomposeVelocities (t_fileio* trj_in,
                 {
                     mol_omegas_sqrt_i_rot[3*ntrajsteps*i + ntrajsteps*dim + t] = angular_velocity_nc[dim] * sqrt(moments_of_inertia[dim]);
                 }
-                // 'a'bc as rotational axis; not implemented yet
+                // 'a'bc as rotational axis
                 else if (m_rot_treat == 'a')
                 {
                     mol_omegas_sqrt_i_rot[3*ntrajsteps*i + ntrajsteps*dim + t] = angular_velocity_abc[dim] * sqrt(moi_tensor_abc[3*dim+dim]);
                 }
+                // a'b'c as rotational axis, but J/sqrt(I)
                 else if (m_rot_treat == 'b')
                 {
                     mol_omegas_sqrt_i_rot[3*ntrajsteps*i + ntrajsteps*dim + t] = angular_momentum_abc[dim] / sqrt(moi_tensor_abc[3*dim+dim]);
                 }
-                // angular velocity ('o'mega) times sqrt(I); does not give total rotational energy
+                // angular velocity in 'x'yz (omega times sqrt(I)); does not give total rotational energy
                 else if (m_rot_treat == 'x')
                 {
                     mol_omegas_sqrt_i_rot[3*ntrajsteps*i + ntrajsteps*dim + t] = angular_velocity[dim] * sqrt(moi_tensor[3*dim+dim]);
                 }
-                // angular momentum ('l') / sqrt(I); does not give total rotational energy
+                // angular momentum in x'y'z (L over sqrt(I)); does not give total rotational energy
                 else if (m_rot_treat == 'y')
                 {
                     mol_omegas_sqrt_i_rot[3*ntrajsteps*i + ntrajsteps*dim + t] = angular_momentum[dim] / sqrt(moi_tensor[3*dim+dim]);
@@ -424,7 +480,6 @@ int decomposeVelocities (t_fileio* trj_in,
         DPRINT("Step %i (time %f) finished\n", t, time);
     }
 
-    //#pragma omp parallel num_threads(8)
     #pragma omp parallel
     {
         free(velocities);
@@ -432,17 +487,6 @@ int decomposeVelocities (t_fileio* trj_in,
         free(positions_rel);
         free(velocities_rot);
     }
-
-    // do not divide by number of steps here, but after block in main program
-    /*for (int i=0; i<nmols; i++)
-    {
-        for (int dim=0; dim<3; dim++)
-        {
-            mol_moments_of_inertia[3*i + dim] /= (float) ntrajsteps;
-        }
-        DPRINT("molecule %d moments of inertia: %8.4f%8.4f%8.4f\n", i,
-                mol_moments_of_inertia[3*i+0], mol_moments_of_inertia[3*i+1], mol_moments_of_inertia[3*i+2]);
-    }*/
 
     // free help arrays
     free(x);
