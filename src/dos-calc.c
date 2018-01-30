@@ -453,16 +453,25 @@ int main( int argc, char *argv[] )
     }
     verbPrintf(verbosity, "finished all samples\n");
 
-    // free input arrays
-    free(moltypes_firstmol);
-    free(moltypes_firstatom);
+    // free arrays
     free(moltypes_nmols);
     free(moltypes_natomspermol);
+
+    for (int h=0; h<nmoltypes; h++)
+    {
+        free(moltypes_atommasses[h]);
+        free(moltypes_abc_indicators[h]);
+    }
+    free(moltypes_atommasses);
     free(moltypes_abc_indicators);
-    free(mols_firstatom);
+
+    free(moltypes_rot_treat);
+    free(moltypes_firstmol);
+    free(moltypes_firstatom);
+    free(mols_moltypenr);
     free(mols_natoms);
     free(mols_mass);
-    free(mols_moltypenr);
+    free(mols_firstatom);
 
     return result + result2;
 }
