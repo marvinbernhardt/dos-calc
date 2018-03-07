@@ -17,16 +17,18 @@ static char doc[] = "dos-calc -- a programm to calculate densities of states fro
 static char args_doc[] = "";
 
 static struct argp_option options[] = {
-    {"dump",     'd', 0,      0,  "Dump velocities of first block" },
-    {"verbose",  'v', 0,      0,  "Produce verbose output" },
-    {"file",     'f', "FILE", 0,  "Input .trr trajectory file (default: traj.trr)"},
+    {"dump",    'd', 0,      0,  "Dump velocities of first block" },
+    {"verbose", 'v', 0,      0,  "Produce verbose output" },
+    {"cross",   'x', 0,      0,  "Compute cross-spectrum of translational with rotationalas DoF" },
+    {"file",    'f', "FILE", 0,  "Input .trr trajectory file (default: traj.trr)"},
     { 0 }
 };
 
 struct arguments
 {
-    bool verbosity;
     bool dump_vel;
+    bool verbosity;
+    bool calc_cross;
     char *file;
 };
 
@@ -43,6 +45,9 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
             break;
         case 'v':
             arguments->verbosity = true;
+            break;
+        case 'x':
+            arguments->calc_cross = true;
             break;
         case 'f':
             arguments->file = arg;
@@ -78,6 +83,7 @@ int main( int argc, char *argv[] )
     // Default values.
     arguments.dump_vel = false;
     arguments.verbosity = false;
+    arguments.calc_cross = false;
     arguments.file = "traj.trr";
 
     // parse command line arguments
@@ -99,6 +105,9 @@ int main( int argc, char *argv[] )
     FILE* fa;
     FILE* fb;
     FILE* fc;
+    FILE* fxa;
+    FILE* fyb;
+    FILE* fzc;
 
     // results of decomposeVelocities and DOSCalculation
     int result = 0;
@@ -109,20 +118,36 @@ int main( int argc, char *argv[] )
     verbPrintf(verbosity, "Reading integers\n");
 
     verbPrintf(verbosity, "nsamples: ");
-    scanf("%d", &nsamples);
+    if (scanf("%d", &nsamples) != 1)
+    {
+        printf("Failed to read nsamples.\n");
+        return 1;
+    }
     verbPrintf(verbosity, "%d\n", nsamples);
 
     verbPrintf(verbosity, "nblocks: ");
-    scanf("%d", &nblocks);
+    if (scanf("%d", &nblocks) != 1)
+    {
+        printf("Failed to read nblocks.\n");
+        return 1;
+    }
     verbPrintf(verbosity, "%d\n", nblocks);
 
     verbPrintf(verbosity, "nblocksteps: ");
-    scanf("%ld", &nblocksteps);
+    if (scanf("%ld", &nblocksteps) != 1)
+    {
+        printf("Failed to read nblocksteps.\n");
+        return 1;
+    }
     verbPrintf(verbosity, "%ld\n", nblocksteps);
     int nfftsteps = nblocksteps / 2 + 1;
 
     verbPrintf(verbosity, "nmoltypes: ");
-    scanf("%d", &nmoltypes);
+    if (scanf("%d", &nmoltypes) != 1)
+    {
+        printf("Failed to read nmoltypes.\n");
+        return 1;
+    }
     verbPrintf(verbosity, "%d\n", nmoltypes);
 
     // scanning moltypes
@@ -137,18 +162,30 @@ int main( int argc, char *argv[] )
         verbPrintf(verbosity, "now reading moltype %d of %d.\n", h+1, nmoltypes);
 
         verbPrintf(verbosity, "moltype %d nmols: ", h+1);
-        scanf("%d", &moltypes_nmols[h]);
+        if (scanf("%d", &moltypes_nmols[h]) != 1)
+        {
+            printf("Failed to read nmols.\n");
+            return 1;
+        }
         verbPrintf(verbosity, "%d\n", moltypes_nmols[h]);
 
         verbPrintf(verbosity, "moltype %d natomspermol: ", h+1);
-        scanf("%d", &moltypes_natomspermol[h]);
+        if (scanf("%d", &moltypes_natomspermol[h]) != 1)
+        {
+            printf("Failed to read natomspermol.\n");
+            return 1;
+        }
         verbPrintf(verbosity, "%d\n", moltypes_natomspermol[h]);
 
         verbPrintf(verbosity, "moltype %d atommasses: ", h+1);
         moltypes_atommasses[h] = (float*) malloc(moltypes_natomspermol[h] * sizeof(float));
         for (int j=0; j<moltypes_natomspermol[h]; j++)
         {
-            scanf("%f", &moltypes_atommasses[h][j]);
+            if (scanf("%f", &moltypes_atommasses[h][j]) != 1)
+            {
+                printf("Failed to read atommass.\n");
+                return 1;
+            }
         }
         for (int j=0; j<moltypes_natomspermol[h]; j++)
         {
@@ -157,14 +194,22 @@ int main( int argc, char *argv[] )
         verbPrintf(verbosity, "\n");
 
         verbPrintf(verbosity, "moltype %d rot_treat: ", h+1);
-        scanf(" %c", &moltypes_rot_treat[h]);
+        if (scanf(" %c", &moltypes_rot_treat[h]) != 1)
+        {
+            printf("Failed to read rot_treat.\n");
+            return 1;
+        }
         verbPrintf(verbosity, "%c\n", moltypes_rot_treat[h]);
 
         verbPrintf(verbosity, "moltype %d abc_indicators: ", h+1);
         moltypes_abc_indicators[h] = (int*) malloc(4 * sizeof(int));
         for (int j=0; j<4; j++)
         {
-            scanf("%d", &moltypes_abc_indicators[h][j]);
+            if (scanf("%d", &moltypes_abc_indicators[h][j]) != 1)
+            {
+                printf("Failed to read abc_indicators.\n");
+                return 1;
+            }
         }
         verbPrintf(verbosity, "%d %d %d %d\n", moltypes_abc_indicators[h][0], moltypes_abc_indicators[h][1], moltypes_abc_indicators[h][2], moltypes_abc_indicators[h][3]);
     }
@@ -241,6 +286,10 @@ int main( int argc, char *argv[] )
         float* moltypes_dos_raw_rot_b = calloc(nmoltypes*nfftsteps, sizeof(float));
         float* moltypes_dos_raw_rot_c = calloc(nmoltypes*nfftsteps, sizeof(float));
         float* moltypes_dos_raw_vib = calloc(nmoltypes*nfftsteps, sizeof(float));
+        // cross spectra
+        float* moltypes_dos_raw_x_trn_rot_a = calloc(nmoltypes*nfftsteps, sizeof(float));
+        float* moltypes_dos_raw_x_trn_rot_b = calloc(nmoltypes*nfftsteps, sizeof(float));
+        float* moltypes_dos_raw_x_trn_rot_c = calloc(nmoltypes*nfftsteps, sizeof(float));
 
         verbPrintf(verbosity, "going through %d blocks\n", nblocks);
         for (int block=0; block<nblocks; block++)
@@ -338,12 +387,16 @@ int main( int argc, char *argv[] )
                     mol_velocities_sqrt_m_trn,
                     mol_omegas_sqrt_i_rot,
                     atom_velocities_sqrt_m_vib,
+                    arguments.calc_cross,
                     moltypes_dos_raw_trn, //output
                     moltypes_dos_raw_rot,
                     moltypes_dos_raw_rot_a,
                     moltypes_dos_raw_rot_b,
                     moltypes_dos_raw_rot_c,
-                    moltypes_dos_raw_vib);
+                    moltypes_dos_raw_vib,
+                    moltypes_dos_raw_x_trn_rot_a,
+                    moltypes_dos_raw_x_trn_rot_b,
+                    moltypes_dos_raw_x_trn_rot_c);
 
             //free velocities
             free(mol_velocities_sqrt_m_trn);
@@ -419,6 +472,38 @@ int main( int argc, char *argv[] )
         fclose(fb);
         fclose(fc);
 
+        // individual axis (abc) cross spectra
+        if (arguments.calc_cross)
+        {
+            char filenamexa[255] = {0};
+            char filenameyb[255] = {0};
+            char filenamezc[255] = {0};
+            sprintf(filenamexa, "sample%d_dos_x_trnx_rota.txt", sample);
+            sprintf(filenameyb, "sample%d_dos_x_trny_rotb.txt", sample);
+            sprintf(filenamezc, "sample%d_dos_x_trnz_rotc.txt", sample);
+            fxa = fopen(filenamexa, "w");
+            fyb = fopen(filenameyb, "w");
+            fzc = fopen(filenamezc, "w");
+            for (int h=0; h<nmoltypes; h++)
+            {
+                for (int t=0; t<nfftsteps; t++)
+                {
+                    if (t!=0) fprintf(fxa, " ");
+                    if (t!=0) fprintf(fyb, " ");
+                    if (t!=0) fprintf(fzc, " ");
+                    fprintf(fxa, "%f", moltypes_dos_raw_x_trn_rot_a[h*nfftsteps + t]);
+                    fprintf(fyb, "%f", moltypes_dos_raw_x_trn_rot_b[h*nfftsteps + t]);
+                    fprintf(fzc, "%f", moltypes_dos_raw_x_trn_rot_c[h*nfftsteps + t]);
+                }
+                fprintf(fxa, "\n");
+                fprintf(fyb, "\n");
+                fprintf(fzc, "\n");
+            }
+            fclose(fxa);
+            fclose(fyb);
+            fclose(fzc);
+        }
+
         sprintf(filename, "sample%d_dos_vib.txt", sample);
         f = fopen(filename, "w");
         for (int h=0; h<nmoltypes; h++)
@@ -449,6 +534,9 @@ int main( int argc, char *argv[] )
         free(moltypes_dos_raw_rot_b);
         free(moltypes_dos_raw_rot_c);
         free(moltypes_dos_raw_vib);
+        free(moltypes_dos_raw_x_trn_rot_a);
+        free(moltypes_dos_raw_x_trn_rot_b);
+        free(moltypes_dos_raw_x_trn_rot_c);
 
     }
     verbPrintf(verbosity, "finished all samples\n");
