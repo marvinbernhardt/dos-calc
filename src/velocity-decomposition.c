@@ -44,6 +44,7 @@ int decomposeVelocities (t_fileio* trj_in,
         int* moltype_natomspermol,
         char* moltype_rot_treat,
         int** moltype_abc_indicators,
+        bool pbcfix,
         float* mol_velocities_sqrt_m_trn,  // from here output
         float* mol_omegas_sqrt_i_rot,
         float* atom_velocities_sqrt_m_vib,
@@ -100,6 +101,27 @@ int decomposeVelocities (t_fileio* trj_in,
             float* m_atommasses = moltypes_atommasses[m_moltype];
             int* m_abc_indicators = moltype_abc_indicators[m_moltype];
             char m_rot_treat = moltype_rot_treat[m_moltype];
+
+            //recombination
+            if(pbcfix==true)
+            {
+                for(int dim=0; dim < 3; dim++)
+                {
+                    for(int j=1; j<m_natoms; j++)
+                    {
+                        int jj = m_firstatom + j;
+                        float dist_to_firstatom = x[jj][dim] - x[m_firstatom][dim];
+                        if(dist_to_firstatom > 0.5 * box[dim][dim])
+                        {
+                            x[jj][dim] -= box[dim][dim];
+                        }
+                        if(dist_to_firstatom < -0.5 * box[dim][dim])
+                        {
+                            x[jj][dim] += box[dim][dim];
+                        }
+                    }
+                }
+            }
 
             // read atoms of one molecule
             for (int j=0; j<m_natoms; j++)
