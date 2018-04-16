@@ -17,10 +17,11 @@ static char doc[] = "dos-calc -- a programm to calculate densities of states fro
 static char args_doc[] = "";
 
 static struct argp_option options[] = {
-    {"dump",    'd', 0,      0,  "Dump velocities of first block" },
-    {"verbose", 'v', 0,      0,  "Produce verbose output" },
-    {"cross",   'x', 0,      0,  "Compute cross-spectrum of translational with rotationalas DoF" },
-    {"file",    'f', "FILE", 0,  "Input .trr trajectory file (default: traj.trr)"},
+    {"dump",    'd', 0,      0, "Dump velocities of first block" },
+    {"verbose", 'v', 0,      0, "Produce verbose output" },
+    {"cross",   'x', 0,      0, "Compute cross-spectrum of translational with rotationalas DoF" },
+    {"file",    'f', "FILE", 0, "Input .trr trajectory file (default: traj.trr)"},
+    {"pbc",     'p', 0     , 0, "Recombine molecules seperated by the periodic boundary conditions"},
     { 0 }
 };
 
@@ -30,6 +31,7 @@ struct arguments
     bool verbosity;
     bool calc_cross;
     char *file;
+    bool pbc;
 };
 
 static error_t parse_opt (int key, char *arg, struct argp_state *state)
@@ -51,6 +53,9 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
             break;
         case 'f':
             arguments->file = arg;
+            break;
+        case 'p':
+            arguments->pbc = true;
             break;
 
         case ARGP_KEY_ARG:
@@ -84,12 +89,12 @@ int main( int argc, char *argv[] )
     arguments.dump_vel = false;
     arguments.verbosity = false;
     arguments.calc_cross = false;
+    arguments.pbc = false;
     arguments.file = "traj.trr";
 
     // parse command line arguments
     argp_parse(&argp, argc, argv, 0, 0, &arguments);
     bool verbosity = arguments.verbosity;
-
     // input that will be scanned
     int nsamples;
     int nblocks;
@@ -315,6 +320,7 @@ int main( int argc, char *argv[] )
                     moltypes_natomspermol,
                     moltypes_rot_treat,
                     moltypes_abc_indicators,
+                    arguments.pbc,
                     mol_velocities_sqrt_m_trn,
                     mol_omegas_sqrt_i_rot,
                     atom_velocities_sqrt_m_vib,
