@@ -10,7 +10,7 @@ GIT_VERSION := $(shell git branch | grep \* | cut -d ' ' -f2)-$(shell git descri
 CFLAGS := -Wall -O3 -fopenmp -std=gnu99 -DVERSION=\"$(GIT_VERSION)\"
 LDFLAGS := -lgromacs -llapacke -llapack -lcblas -lblas -lfftw3f -lm -lgfortran
 INC := -I $${GROMACS_DIR}/include
-LIB := -L $${GMXLDLIB}
+LIB := -L $${GMXLDLIB} -L /install/software/lib
 
 $(PROGRAM): $(OBJ) velocity-decomposition.c fft.c linear-algebra.c verbPrintf.c
 	$(CC) $(CFLAGS) -o $(PROGRAM) $(OBJ) $(INC) $(LIB) $(LDFLAGS)
