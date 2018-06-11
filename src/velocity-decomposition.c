@@ -44,7 +44,7 @@ int decomposeVelocities (t_fileio* trj_in,
         int* moltype_natomspermol,
         char* moltype_rot_treat,
         int** moltype_abc_indicators,
-        bool pbcfix,
+        bool no_pbc,
         float* mol_velocities_sqrt_m_trn,  // from here output
         float* mol_omegas_sqrt_i_rot,
         float* atom_velocities_sqrt_m_vib,
@@ -103,7 +103,7 @@ int decomposeVelocities (t_fileio* trj_in,
             char m_rot_treat = moltype_rot_treat[m_moltype];
 
             //recombination
-            if(pbcfix==true)
+            if (no_pbc==false)
             {
                 for(int dim=0; dim < 3; dim++)
                 {
