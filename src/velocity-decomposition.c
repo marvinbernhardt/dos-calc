@@ -90,7 +90,7 @@ int decomposeVelocities (t_fileio* trj_in,
 
 
         // loop over molecules
-        #pragma omp parallel
+        #pragma omp parallel for
         for (int i=0; i<nmols; i++)
         {
             DPRINT("\ndoing molecule %d\n", i);
