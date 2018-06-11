@@ -88,9 +88,8 @@ int decomposeVelocities (t_fileio* trj_in,
         DPRINT("There are %i atoms at step %i (time %f). My box is: %f %f %f \n",
                 header.natoms, t, time, box[0][0], box[1][1], box[2][2]);
 
-
         // loop over molecules
-        #pragma omp parallel
+        #pragma omp parallel for
         for (int i=0; i<nmols; i++)
         {
             DPRINT("\ndoing molecule %d\n", i);
@@ -154,7 +153,6 @@ int decomposeVelocities (t_fileio* trj_in,
                 }
                 continue;
             }
-
 
             // calc molecule velocity and molecule com
             float center_of_mass[3] = {0.0, 0.0, 0.0};

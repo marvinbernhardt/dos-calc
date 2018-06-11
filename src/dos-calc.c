@@ -291,6 +291,7 @@ int main( int argc, char *argv[] )
 
         // output arrays
         float* mol_moments_of_inertia = calloc(nmols*3, sizeof(float));
+        float* moltypes_moments_of_inertia = calloc(nmoltypes*3, sizeof(float));
         float* moltypes_dos_raw_trn = calloc(nmoltypes*nfftsteps, sizeof(float));
         float* moltypes_dos_raw_trn_x = calloc(nmoltypes*nfftsteps, sizeof(float));
         float* moltypes_dos_raw_trn_y = calloc(nmoltypes*nfftsteps, sizeof(float));
@@ -444,6 +445,21 @@ int main( int argc, char *argv[] )
         cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltypes_dos_raw_vib_x, 1);
         cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltypes_dos_raw_vib_y, 1);
         cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltypes_dos_raw_vib_z, 1);
+        cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltypes_dos_raw_x_trn_rot, 1);
+        cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltypes_dos_raw_x_trn_vib, 1);
+        cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltypes_dos_raw_x_rot_vib, 1);
+
+        // moments of inertia of moltype
+        for (int i=0; i<nmols; i++)
+        {
+            moltypes_moments_of_inertia[3*mols_moltypenr[i]+0] += mol_moments_of_inertia[3*i+0];
+            moltypes_moments_of_inertia[3*mols_moltypenr[i]+1] += mol_moments_of_inertia[3*i+1];
+            moltypes_moments_of_inertia[3*mols_moltypenr[i]+2] += mol_moments_of_inertia[3*i+2];
+        }
+        for (int h=0; h<nmoltypes; h++)
+        {
+            cblas_sscal(3, 1.0 / (float) moltypes_nmols[h], &moltypes_moments_of_inertia[3*h], 1);
+        }
 
         char filename[255] = {0};
         sprintf(filename, "sample%d_dos_trn.txt", sample);
@@ -615,12 +631,12 @@ int main( int argc, char *argv[] )
             fclose(fc);
         }
 
-        sprintf(filename, "sample%d_moi.txt", sample);
+        sprintf(filename, "sample%d_moments_of_inertia.txt", sample);
         f = fopen(filename, "w");
-        for (int i=0; i<nmols; i++)
+        for (int h=0; h<nmoltypes; h++)
         {
-            fprintf(f, "%f %f %f\n", mol_moments_of_inertia[3*i+0],
-                    mol_moments_of_inertia[3*i+1], mol_moments_of_inertia[3*i+2]);
+            fprintf(f, "%f %f %f\n", moltypes_moments_of_inertia[3*h+0],
+                    moltypes_moments_of_inertia[3*h+1], moltypes_moments_of_inertia[3*h+2]);
         }
         fclose(f);
 
