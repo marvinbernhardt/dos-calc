@@ -67,13 +67,23 @@ int decomposeVelocities (t_fileio* trj_in,
     static float* velocities_rot;
     #pragma omp threadprivate(positions, velocities, positions_rel, velocities_rot)
 
+    // largest molecule n_atoms
+    int mol_natoms_max = 0;
+    for (int h=0; h<nmoltypes; h++)
+    {
+        if (moltype_natomspermol[h] > mol_natoms_max)
+        {
+            mol_natoms_max = moltype_natomspermol[h];
+        }
+    }
+
     #pragma omp parallel
     {
         // allocate positions, velocities (work arrays private to each thread)
-        positions = calloc(3*natoms, sizeof(float)); // this one could be smaller, but big molecules might arrive
-        velocities = calloc(3*natoms, sizeof(float)); // this one could be smaller, but big molecules might arrive
-        positions_rel = calloc(3*natoms, sizeof(float));
-        velocities_rot = calloc(3*natoms, sizeof(float)); // this one could be smaller, but big molecules
+        positions = calloc(3*mol_natoms_max, sizeof(float));
+        velocities = calloc(3*mol_natoms_max, sizeof(float));
+        positions_rel = calloc(3*mol_natoms_max, sizeof(float));
+        velocities_rot = calloc(3*mol_natoms_max, sizeof(float));
     }
 
     DPRINT("start reading frame\n");
