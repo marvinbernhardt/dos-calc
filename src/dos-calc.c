@@ -10,6 +10,9 @@
 #include "fft.c"
 #include "verbPrintf.c"
 
+// constants
+#define K_GRO 0.00831445986144858  // k_B in gromacs units
+
 // CLI stuff
 const char* argp_program_version = VERSION;
 const char* argp_program_bug_address = "<bernhardt@cpc.tu-darmstadt.de>";
@@ -23,6 +26,8 @@ static struct argp_option options[] = {
     {"cross",      'x', 0,      0, "Compute cross-spectrum of translational with rotationalas DoF"},
     {"file",       'f', "FILE", 0, "Input .trr trajectory file (default: traj.trr)"},
     {"no-pbc",     'p', 0,      0, "Do not recombine molecules seperated by periodic boundary conditions"},
+    {"steplength", 's', "STEP", 0, "Steplength in trajectory (in ps). If given together with temperature, the DoS normalized! If given a file frequencies.txt (in 1/ps) will be created!"},
+    {"temperature", 't', "TEMP", 0, "Temperature in trajectory (in K). If given together with steplength, the DoS normalized!"},
     { 0 }
 };
 
@@ -34,6 +39,8 @@ struct arguments
     bool calc_cross;
     char *file;
     bool no_pbc;
+    float steplength;
+    float temperature;
 };
 
 static error_t parse_opt (int key, char *arg, struct argp_state *state)
@@ -61,6 +68,12 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
             break;
         case 'p':
             arguments->no_pbc = true;
+            break;
+        case 's':
+            arguments->steplength = strtof(arg, NULL);
+            break;
+        case 't':
+            arguments->temperature = strtof(arg, NULL);
             break;
 
         case ARGP_KEY_ARG:
@@ -95,12 +108,27 @@ int main( int argc, char *argv[] )
     arguments.verbosity = false;
     arguments.calc_components = false;
     arguments.calc_cross = false;
-    arguments.no_pbc = false;
     arguments.file = "traj.trr";
+    arguments.no_pbc = false;
+    arguments.temperature = -1.0;
+    arguments.steplength = -1.0;
 
     // parse command line arguments
     argp_parse(&argp, argc, argv, 0, 0, &arguments);
+
     bool verbosity = arguments.verbosity;
+    bool normalize;
+    if (arguments.temperature > 0.0 && arguments.steplength > 0.0)
+    {
+        normalize = true;
+        verbPrintf(verbosity, "Temperature and Steplength given. DoS will be normalized\n");
+    }
+    else
+    {
+        normalize = false;
+        verbPrintf(verbosity, "Temperature and/or Steplength missing. DoS will not be normalized\n");
+    }
+
     // input that will be scanned
     int nsamples;
     int nblocks;
@@ -431,23 +459,37 @@ int main( int argc, char *argv[] )
         }
         verbPrintf(verbosity, "finished all blocks\n");
 
-        // divide results by number of blocks (and number of blocksteps for the moi)
+        // divide moi by number of blocks and number of blocksteps
         cblas_sscal(nmols*3, 1.0 / (float) nblocks / (float) nblocksteps, mol_moments_of_inertia, 1);
-        cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltypes_dos_raw_trn, 1);
-        cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltypes_dos_raw_trn_x, 1);
-        cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltypes_dos_raw_trn_y, 1);
-        cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltypes_dos_raw_trn_z, 1);
-        cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltypes_dos_raw_rot, 1);
-        cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltypes_dos_raw_rot_a, 1);
-        cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltypes_dos_raw_rot_b, 1);
-        cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltypes_dos_raw_rot_c, 1);
-        cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltypes_dos_raw_vib, 1);
-        cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltypes_dos_raw_vib_x, 1);
-        cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltypes_dos_raw_vib_y, 1);
-        cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltypes_dos_raw_vib_z, 1);
-        cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltypes_dos_raw_x_trn_rot, 1);
-        cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltypes_dos_raw_x_trn_vib, 1);
-        cblas_sscal(nmoltypes*nfftsteps, 1.0 / (float)nblocks, moltypes_dos_raw_x_rot_vib, 1);
+
+        // normalize
+        float norm_factor;
+        for (int h=0; h<nmoltypes; h++)
+        {
+            if (normalize) {
+               norm_factor = 1.0 / (float)nblocks;
+               norm_factor *= 2.0 * arguments.steplength / nblocksteps / moltypes_nmols[h] / K_GRO / arguments.temperature;
+            }
+            else
+            {
+               norm_factor = 1.0 / (float)nblocks;
+            }
+            cblas_sscal(nfftsteps, norm_factor, &moltypes_dos_raw_trn[h*nfftsteps], 1);
+            cblas_sscal(nfftsteps, norm_factor, &moltypes_dos_raw_trn_x[h*nfftsteps], 1);
+            cblas_sscal(nfftsteps, norm_factor, &moltypes_dos_raw_trn_y[h*nfftsteps], 1);
+            cblas_sscal(nfftsteps, norm_factor, &moltypes_dos_raw_trn_z[h*nfftsteps], 1);
+            cblas_sscal(nfftsteps, norm_factor, &moltypes_dos_raw_rot[h*nfftsteps], 1);
+            cblas_sscal(nfftsteps, norm_factor, &moltypes_dos_raw_rot_a[h*nfftsteps], 1);
+            cblas_sscal(nfftsteps, norm_factor, &moltypes_dos_raw_rot_b[h*nfftsteps], 1);
+            cblas_sscal(nfftsteps, norm_factor, &moltypes_dos_raw_rot_c[h*nfftsteps], 1);
+            cblas_sscal(nfftsteps, norm_factor, &moltypes_dos_raw_vib[h*nfftsteps], 1);
+            cblas_sscal(nfftsteps, norm_factor, &moltypes_dos_raw_vib_x[h*nfftsteps], 1);
+            cblas_sscal(nfftsteps, norm_factor, &moltypes_dos_raw_vib_y[h*nfftsteps], 1);
+            cblas_sscal(nfftsteps, norm_factor, &moltypes_dos_raw_vib_z[h*nfftsteps], 1);
+            cblas_sscal(nfftsteps, norm_factor, &moltypes_dos_raw_x_trn_rot[h*nfftsteps], 1);
+            cblas_sscal(nfftsteps, norm_factor, &moltypes_dos_raw_x_trn_vib[h*nfftsteps], 1);
+            cblas_sscal(nfftsteps, norm_factor, &moltypes_dos_raw_x_rot_vib[h*nfftsteps], 1);
+        }
 
         // moments of inertia of moltype
         for (int i=0; i<nmols; i++)
@@ -656,6 +698,18 @@ int main( int argc, char *argv[] )
         free(moltypes_dos_raw_vib_z);
     }
     verbPrintf(verbosity, "finished all samples\n");
+
+    if (arguments.steplength > 0.0)
+    {
+        verbPrintf(verbosity, "generating frequencies.txt\n");
+        f = fopen("frequencies.txt", "w");
+        for (int i=0; i<nblocksteps/2+1; i++)
+        {
+            if (i!=0) fprintf(f, " ");
+            fprintf(f, "%f", i / (arguments.steplength * nblocksteps));
+        }
+        fclose(f);
+    }
 
     // free arrays
     free(moltypes_nmols);
