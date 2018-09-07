@@ -20,14 +20,13 @@ static char doc[] = "dos-calc -- a programm to calculate densities of states fro
 static char args_doc[] = "";
 
 static struct argp_option options[] = {
-    {"dump",       'd', 0,      0, "Dump velocities of first block"},
-    {"verbose",    'v', 0,      0, "Produce verbose output"},
-    {"components", 'c', 0,      0, "Compute xyz components of trn and vib and abc of rot"},
-    {"cross",      'x', 0,      0, "Compute cross-spectrum of translational with rotationalas DoF"},
-    {"file",       'f', "FILE", 0, "Input .trr trajectory file (default: traj.trr)"},
-    {"no-pbc",     'p', 0,      0, "Do not recombine molecules seperated by periodic boundary conditions"},
-    {"steplength", 's', "STEP", 0, "Steplength in trajectory (in ps). If given together with temperature, the DoS normalized! If given a file frequencies.txt (in 1/ps) will be created!"},
-    {"temperature", 't', "TEMP", 0, "Temperature in trajectory (in K). If given together with steplength, the DoS normalized!"},
+    {"dump",        'd', 0,      0, "Dump velocities of first block"},
+    {"verbose",     'v', 0,      0, "Produce verbose output"},
+    {"components",  'c', 0,      0, "Compute xyz components of trn and vib and abc of rot"},
+    {"cross",       'x', 0,      0, "Compute cross-spectrum of translational with rotationalas DoF"},
+    {"file",        'f', "FILE", 0, "Input .trr trajectory file (default: traj.trr)"},
+    {"no-pbc",      'p', 0,      0, "Do not recombine molecules seperated by periodic boundary conditions"},
+    {"temperature", 't', "TEMP", 0, "Temperature in trajectory (in K). If given, the DoS normalized!"},
     { 0 }
 };
 
@@ -39,7 +38,6 @@ struct arguments
     bool calc_cross;
     char *file;
     bool no_pbc;
-    float steplength;
     float temperature;
 };
 
@@ -68,9 +66,6 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
             break;
         case 'p':
             arguments->no_pbc = true;
-            break;
-        case 's':
-            arguments->steplength = strtof(arg, NULL);
             break;
         case 't':
             arguments->temperature = strtof(arg, NULL);
@@ -110,23 +105,22 @@ int main( int argc, char *argv[] )
     arguments.calc_cross = false;
     arguments.file = "traj.trr";
     arguments.no_pbc = false;
-    arguments.temperature = -1.0;
-    arguments.steplength = -1.0;
+    arguments.temperature = 0.0;
 
     // parse command line arguments
     argp_parse(&argp, argc, argv, 0, 0, &arguments);
 
     bool verbosity = arguments.verbosity;
     bool normalize;
-    if (arguments.temperature > 0.0 && arguments.steplength > 0.0)
+    if (arguments.temperature != 0.0)
     {
         normalize = true;
-        verbPrintf(verbosity, "Temperature and Steplength given. DoS will be normalized\n");
+        verbPrintf(verbosity, "Temperature given. DoS will be normalized\n");
     }
     else
     {
         normalize = false;
-        verbPrintf(verbosity, "Temperature and/or Steplength missing. DoS will not be normalized\n");
+        verbPrintf(verbosity, "Temperature missing. DoS will not be normalized\n");
     }
 
     // input that will be scanned
@@ -159,7 +153,7 @@ int main( int argc, char *argv[] )
     verbPrintf(verbosity, "nsamples: ");
     if (scanf("%d", &nsamples) != 1)
     {
-        printf("Failed to read nsamples.\n");
+        fprintf(stderr, "ERROR: Failed to read nsamples.\n");
         return 1;
     }
     verbPrintf(verbosity, "%d\n", nsamples);
@@ -167,7 +161,7 @@ int main( int argc, char *argv[] )
     verbPrintf(verbosity, "nblocks: ");
     if (scanf("%d", &nblocks) != 1)
     {
-        printf("Failed to read nblocks.\n");
+        fprintf(stderr, "ERROR: Failed to read nblocks.\n");
         return 1;
     }
     verbPrintf(verbosity, "%d\n", nblocks);
@@ -175,7 +169,7 @@ int main( int argc, char *argv[] )
     verbPrintf(verbosity, "nblocksteps: ");
     if (scanf("%ld", &nblocksteps) != 1)
     {
-        printf("Failed to read nblocksteps.\n");
+        fprintf(stderr, "ERROR: Failed to read nblocksteps.\n");
         return 1;
     }
     verbPrintf(verbosity, "%ld\n", nblocksteps);
@@ -184,7 +178,7 @@ int main( int argc, char *argv[] )
     verbPrintf(verbosity, "nmoltypes: ");
     if (scanf("%d", &nmoltypes) != 1)
     {
-        printf("Failed to read nmoltypes.\n");
+        fprintf(stderr, "ERROR: Failed to read nmoltypes.\n");
         return 1;
     }
     verbPrintf(verbosity, "%d\n", nmoltypes);
@@ -203,7 +197,7 @@ int main( int argc, char *argv[] )
         verbPrintf(verbosity, "moltype %d nmols: ", h+1);
         if (scanf("%d", &moltypes_nmols[h]) != 1)
         {
-            printf("Failed to read nmols.\n");
+            fprintf(stderr, "ERROR: Failed to read nmols.\n");
             return 1;
         }
         verbPrintf(verbosity, "%d\n", moltypes_nmols[h]);
@@ -211,7 +205,7 @@ int main( int argc, char *argv[] )
         verbPrintf(verbosity, "moltype %d natomspermol: ", h+1);
         if (scanf("%d", &moltypes_natomspermol[h]) != 1)
         {
-            printf("Failed to read natomspermol.\n");
+            fprintf(stderr, "ERROR: Failed to read natomspermol.\n");
             return 1;
         }
         verbPrintf(verbosity, "%d\n", moltypes_natomspermol[h]);
@@ -222,7 +216,7 @@ int main( int argc, char *argv[] )
         {
             if (scanf("%f", &moltypes_atommasses[h][j]) != 1)
             {
-                printf("Failed to read atommass.\n");
+                fprintf(stderr, "ERROR: Failed to read atommass.\n");
                 return 1;
             }
         }
@@ -235,7 +229,7 @@ int main( int argc, char *argv[] )
         verbPrintf(verbosity, "moltype %d rot_treat: ", h+1);
         if (scanf(" %c", &moltypes_rot_treat[h]) != 1)
         {
-            printf("Failed to read rot_treat.\n");
+            fprintf(stderr, "ERROR: Failed to read rot_treat.\n");
             return 1;
         }
         verbPrintf(verbosity, "%c\n", moltypes_rot_treat[h]);
@@ -246,7 +240,7 @@ int main( int argc, char *argv[] )
         {
             if (scanf("%d", &moltypes_abc_indicators[h][j]) != 1)
             {
-                printf("Failed to read abc_indicators.\n");
+                fprintf(stderr, "ERROR: Failed to read abc_indicators.\n");
                 return 1;
             }
         }
@@ -299,14 +293,33 @@ int main( int argc, char *argv[] )
     verbPrintf(verbosity, "starting with file %s\n", arguments.file);
     t_fileio* trj_in = gmx_trr_open(arguments.file, "r");
 
-    // read header
-    verbPrintf(verbosity, "start reading header\n");
+    // read first two frames
+    verbPrintf(verbosity, "reading framelength from first two frame's timestamps: ");
+    float framelength;
     gmx_trr_header_t header;
-    gmx_bool bOK;
-    gmx_trr_read_frame_header(trj_in, &header, &bOK);
-    if (!bOK) {
-        printf("trajectory header broken\n");
+    gmx_bool header_fine;
+    gmx_bool frame_fine;
+    header_fine = gmx_trr_read_frame_header(trj_in, &header, &header_fine);
+    frame_fine = gmx_trr_read_frame_data(trj_in, &header, NULL, NULL, NULL, NULL);
+    if (!frame_fine || !header_fine) {
+        fprintf(stderr, "ERROR: First frame of trajectory broken\n");
         return 1;
+    }
+    framelength = - header.t;
+    header_fine = gmx_trr_read_frame_header(trj_in, &header, &header_fine);
+    if (!header_fine) {
+        fprintf(stderr, "ERROR: Second frame of trajectory broken\n");
+        return 1;
+    }
+    framelength += header.t;
+    verbPrintf(verbosity, "%f\n", framelength);
+    if (natoms > header.natoms) {
+        fprintf(stderr, "ERROR: The topology you give has more atoms than first frame of the trajectory\n");
+        return 1;
+    }
+    else if (natoms < header.natoms) {
+        fprintf(stderr, "WARNING: The topology you give has less atoms than first frame of the trajectory\n");
+        fprintf(stderr, "         Some atoms are ignored in every frame\n");
     }
 
     // go back to start of file
@@ -468,7 +481,7 @@ int main( int argc, char *argv[] )
         {
             if (normalize) {
                norm_factor = 1.0 / (float)nblocks;
-               norm_factor *= 2.0 * arguments.steplength / nblocksteps / moltypes_nmols[h] / K_GRO / arguments.temperature;
+               norm_factor *= 2.0 * framelength / nblocksteps / moltypes_nmols[h] / K_GRO / arguments.temperature;
             }
             else
             {
@@ -699,17 +712,14 @@ int main( int argc, char *argv[] )
     }
     verbPrintf(verbosity, "finished all samples\n");
 
-    if (arguments.steplength > 0.0)
+    verbPrintf(verbosity, "generating frequencies.txt\n");
+    f = fopen("frequencies.txt", "w");
+    for (int i=0; i<nblocksteps/2+1; i++)
     {
-        verbPrintf(verbosity, "generating frequencies.txt\n");
-        f = fopen("frequencies.txt", "w");
-        for (int i=0; i<nblocksteps/2+1; i++)
-        {
-            if (i!=0) fprintf(f, " ");
-            fprintf(f, "%f", i / (arguments.steplength * nblocksteps));
-        }
-        fclose(f);
+        if (i!=0) fprintf(f, " ");
+        fprintf(f, "%f", i / (framelength * nblocksteps));
     }
+    fclose(f);
 
     // free arrays
     free(moltypes_nmols);

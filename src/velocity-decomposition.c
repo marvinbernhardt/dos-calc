@@ -91,7 +91,7 @@ int decomposeVelocities (t_fileio* trj_in,
     {
         if (gmx_trr_read_frame(trj_in, &step, &time, &lambda, box, &header.natoms, x, v, NULL) == FALSE)
         {
-            printf("Reading frame failed\n");
+            fprintf(stderr, "ERROR: Reading frame failed\n");
             //return 1;
         }
 
@@ -201,7 +201,6 @@ int decomposeVelocities (t_fileio* trj_in,
 
                 DPRINT("pos_rel atom %d: %8.4f%8.4f%8.4f\n", j,
                         positions_rel[3*j+0], positions_rel[3*j+1], positions_rel[3*j+2]);
-
             }
 
             // calc angular momentum
@@ -239,7 +238,7 @@ int decomposeVelocities (t_fileio* trj_in,
             // linear molecules
             if (m_natoms == 2 && m_rot_treat != 'l')
             {
-                printf("For linear molecules rot_treat has to be 'l' (linear)\n");
+                fprintf(stderr, "ERROR: For linear molecules rot_treat has to be 'l' (linear)\n");
                 exit(1);
             }
             else if (m_rot_treat == 'l')
@@ -308,7 +307,7 @@ int decomposeVelocities (t_fileio* trj_in,
                     /*
                     if (copysignf(1.0, angular_velocity[dim]) != copysignf(1.0, angular_momentum[dim]))
                     {
-                        printf("angular velocity and angular_momentum don't point in the same direction!\n");
+                        fprintf(stderr, "ERROR: angular velocity and angular_momentum don't point in the same direction!\n");
                         exit(1);
                     }
                     */
@@ -333,8 +332,8 @@ int decomposeVelocities (t_fileio* trj_in,
             if (LAPACKE_ssyev(LAPACK_ROW_MAJOR, 'V', 'U',
                         3, eigenvectors, 3, moments_of_inertia) > 0)
             {
-                printf("LAPACKE_ssyev failed to compute eigenvalues of\n");
-                printf("the moment of inertia tensor of molecule %d\n", i);
+                fprintf(stderr, "ERROR: LAPACKE_ssyev failed to compute eigenvalues of\n");
+                fprintf(stderr, "       the moment of inertia tensor of molecule %d\n", i);
                 exit(1);
             }
 
