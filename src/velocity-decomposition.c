@@ -393,12 +393,15 @@ int decomposeVelocities (t_fileio* trj_in,
 
             // check if eigenvector points in same general direction as abc
             // if not flip eigenvector
-            if (cblas_sdot(3, &eigenvectors[0], 3, a, 1) < 0.0)
-                cblas_sscal(3, -1.0, &eigenvectors[0], 3);
-            if (cblas_sdot(3, &eigenvectors[1], 3, b, 1) < 0.0)
-                cblas_sscal(3, -1.0, &eigenvectors[1], 3);
-            if (cblas_sdot(3, &eigenvectors[2], 3, c, 1) < 0.0)
-                cblas_sscal(3, -1.0, &eigenvectors[2], 3);
+            if (m_rot_treat != 'c')
+            {
+                if (cblas_sdot(3, &eigenvectors[0], 3, a, 1) < 0.0)
+                    cblas_sscal(3, -1.0, &eigenvectors[0], 3);
+                if (cblas_sdot(3, &eigenvectors[1], 3, b, 1) < 0.0)
+                    cblas_sscal(3, -1.0, &eigenvectors[1], 3);
+                if (cblas_sdot(3, &eigenvectors[2], 3, c, 1) < 0.0)
+                    cblas_sscal(3, -1.0, &eigenvectors[2], 3);
+            }
 
             DPRINT("eigenvectors unflipped:\n");
             DPRINT("%f %f %f\n", eigenvectors[0], eigenvectors[1], eigenvectors[2]);
@@ -468,7 +471,7 @@ int decomposeVelocities (t_fileio* trj_in,
                     mol_omegas_sqrt_i_rot[3*ntrajsteps*i + ntrajsteps*dim + t] = angular_velocity_nc[dim] * sqrt(moments_of_inertia[dim]);
                 }
                 // 'a'bc as rotational axis
-                else if (m_rot_treat == 'a')
+                else if (m_rot_treat == 'a' || m_rot_treat == 'c')
                 {
                     mol_omegas_sqrt_i_rot[3*ntrajsteps*i + ntrajsteps*dim + t] = angular_velocity_abc[dim] * sqrt(moi_tensor_abc[3*dim+dim]);
                 }
