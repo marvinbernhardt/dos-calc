@@ -393,7 +393,7 @@ int decomposeVelocities (t_fileio* trj_in,
 
             // check if eigenvector points in same general direction as abc
             // if not flip eigenvector
-            if (m_rot_treat != 'c')
+            if (m_rot_treat != 'g')
             {
                 if (cblas_sdot(3, &eigenvectors[0], 3, a, 1) < 0.0)
                     cblas_sscal(3, -1.0, &eigenvectors[0], 3);
@@ -466,12 +466,12 @@ int decomposeVelocities (t_fileio* trj_in,
             for (int dim=0; dim<3; dim++)
             {
                 // 'f'ollowing the principal or abc axis; original method
-                if (m_rot_treat == 'f')
+                if (m_rot_treat == 'f' || m_rot_treat == 'g')
                 {
                     mol_omegas_sqrt_i_rot[3*ntrajsteps*i + ntrajsteps*dim + t] = angular_velocity_nc[dim] * sqrt(moments_of_inertia[dim]);
                 }
                 // 'a'bc as rotational axis
-                else if (m_rot_treat == 'a' || m_rot_treat == 'c')
+                else if (m_rot_treat == 'a')
                 {
                     mol_omegas_sqrt_i_rot[3*ntrajsteps*i + ntrajsteps*dim + t] = angular_velocity_abc[dim] * sqrt(moi_tensor_abc[3*dim+dim]);
                 }
