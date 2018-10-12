@@ -31,6 +31,8 @@ The following visualisation shows you the effect of `nsamples = 2` and `nblocks 
 ----------sample0--------- ----------sample1---------
 -block0- -block1- -block2- -block0- -block1- -block2-
 ```
+In the consequence the trajectory must have equal or more than `nsamples * nblocks * nblocksteps` frames with positions and velocities.
+
 For each sample dos-calc will generate DoS files. Each sample can consist of multipe blocks that contribute to the sample's DoS (for example to reduce noise).
 
 ## Rotational treatment
