@@ -44,7 +44,7 @@ int decomposeVelocities (t_fileio* trj_in,
         int* moltype_natomspermol,
         char* moltype_rot_treat,
         int** moltype_abc_indicators,
-        bool pbcfix,
+        bool no_pbc,
         float* mol_velocities_sqrt_m_trn,  // from here output
         float* mol_omegas_sqrt_i_rot,
         float* atom_velocities_sqrt_m_vib,
@@ -67,13 +67,23 @@ int decomposeVelocities (t_fileio* trj_in,
     static float* velocities_rot;
     #pragma omp threadprivate(positions, velocities, positions_rel, velocities_rot)
 
+    // largest molecule n_atoms
+    int mol_natoms_max = 0;
+    for (int h=0; h<nmoltypes; h++)
+    {
+        if (moltype_natomspermol[h] > mol_natoms_max)
+        {
+            mol_natoms_max = moltype_natomspermol[h];
+        }
+    }
+
     #pragma omp parallel
     {
         // allocate positions, velocities (work arrays private to each thread)
-        positions = calloc(3*natoms, sizeof(float)); // this one could be smaller, but big molecules might arrive
-        velocities = calloc(3*natoms, sizeof(float)); // this one could be smaller, but big molecules might arrive
-        positions_rel = calloc(3*natoms, sizeof(float));
-        velocities_rot = calloc(3*natoms, sizeof(float)); // this one could be smaller, but big molecules
+        positions = calloc(3*mol_natoms_max, sizeof(float));
+        velocities = calloc(3*mol_natoms_max, sizeof(float));
+        positions_rel = calloc(3*mol_natoms_max, sizeof(float));
+        velocities_rot = calloc(3*mol_natoms_max, sizeof(float));
     }
 
     DPRINT("start reading frame\n");
@@ -81,13 +91,12 @@ int decomposeVelocities (t_fileio* trj_in,
     {
         if (gmx_trr_read_frame(trj_in, &step, &time, &lambda, box, &header.natoms, x, v, NULL) == FALSE)
         {
-            printf("Reading frame failed\n");
+            fprintf(stderr, "ERROR: Reading frame failed\n");
             //return 1;
         }
 
         DPRINT("There are %i atoms at step %i (time %f). My box is: %f %f %f \n",
                 header.natoms, t, time, box[0][0], box[1][1], box[2][2]);
-
 
         // loop over molecules
         #pragma omp parallel for
@@ -103,7 +112,7 @@ int decomposeVelocities (t_fileio* trj_in,
             char m_rot_treat = moltype_rot_treat[m_moltype];
 
             //recombination
-            if(pbcfix==true)
+            if (no_pbc==false)
             {
                 for(int dim=0; dim < 3; dim++)
                 {
@@ -155,7 +164,6 @@ int decomposeVelocities (t_fileio* trj_in,
                 continue;
             }
 
-
             // calc molecule velocity and molecule com
             float center_of_mass[3] = {0.0, 0.0, 0.0};
             float mol_velocity_trn[3] = {0.0, 0.0, 0.0};
@@ -193,7 +201,6 @@ int decomposeVelocities (t_fileio* trj_in,
 
                 DPRINT("pos_rel atom %d: %8.4f%8.4f%8.4f\n", j,
                         positions_rel[3*j+0], positions_rel[3*j+1], positions_rel[3*j+2]);
-
             }
 
             // calc angular momentum
@@ -231,7 +238,7 @@ int decomposeVelocities (t_fileio* trj_in,
             // linear molecules
             if (m_natoms == 2 && m_rot_treat != 'l')
             {
-                printf("For linear molecules rot_treat has to be 'l' (linear)\n");
+                fprintf(stderr, "ERROR: For linear molecules rot_treat has to be 'l' (linear)\n");
                 exit(1);
             }
             else if (m_rot_treat == 'l')
@@ -300,7 +307,7 @@ int decomposeVelocities (t_fileio* trj_in,
                     /*
                     if (copysignf(1.0, angular_velocity[dim]) != copysignf(1.0, angular_momentum[dim]))
                     {
-                        printf("angular velocity and angular_momentum don't point in the same direction!\n");
+                        fprintf(stderr, "ERROR: angular velocity and angular_momentum don't point in the same direction!\n");
                         exit(1);
                     }
                     */
@@ -325,8 +332,8 @@ int decomposeVelocities (t_fileio* trj_in,
             if (LAPACKE_ssyev(LAPACK_ROW_MAJOR, 'V', 'U',
                         3, eigenvectors, 3, moments_of_inertia) > 0)
             {
-                printf("LAPACKE_ssyev failed to compute eigenvalues of\n");
-                printf("the moment of inertia tensor of molecule %d\n", i);
+                fprintf(stderr, "ERROR: LAPACKE_ssyev failed to compute eigenvalues of\n");
+                fprintf(stderr, "       the moment of inertia tensor of molecule %d\n", i);
                 exit(1);
             }
 
@@ -386,12 +393,15 @@ int decomposeVelocities (t_fileio* trj_in,
 
             // check if eigenvector points in same general direction as abc
             // if not flip eigenvector
-            if (cblas_sdot(3, &eigenvectors[0], 3, a, 1) < 0.0)
-                cblas_sscal(3, -1.0, &eigenvectors[0], 3);
-            if (cblas_sdot(3, &eigenvectors[1], 3, b, 1) < 0.0)
-                cblas_sscal(3, -1.0, &eigenvectors[1], 3);
-            if (cblas_sdot(3, &eigenvectors[2], 3, c, 1) < 0.0)
-                cblas_sscal(3, -1.0, &eigenvectors[2], 3);
+            if (m_rot_treat != 'g')
+            {
+                if (cblas_sdot(3, &eigenvectors[0], 3, a, 1) < 0.0)
+                    cblas_sscal(3, -1.0, &eigenvectors[0], 3);
+                if (cblas_sdot(3, &eigenvectors[1], 3, b, 1) < 0.0)
+                    cblas_sscal(3, -1.0, &eigenvectors[1], 3);
+                if (cblas_sdot(3, &eigenvectors[2], 3, c, 1) < 0.0)
+                    cblas_sscal(3, -1.0, &eigenvectors[2], 3);
+            }
 
             DPRINT("eigenvectors unflipped:\n");
             DPRINT("%f %f %f\n", eigenvectors[0], eigenvectors[1], eigenvectors[2]);
@@ -456,7 +466,7 @@ int decomposeVelocities (t_fileio* trj_in,
             for (int dim=0; dim<3; dim++)
             {
                 // 'f'ollowing the principal or abc axis; original method
-                if (m_rot_treat == 'f')
+                if (m_rot_treat == 'f' || m_rot_treat == 'g')
                 {
                     mol_omegas_sqrt_i_rot[3*ntrajsteps*i + ntrajsteps*dim + t] = angular_velocity_nc[dim] * sqrt(moments_of_inertia[dim]);
                 }
