@@ -40,7 +40,7 @@ target_link_libraries(dos-calc PRIVATE $ENV{GMXPREFIX}/lib64/libgromacs.so)
 target_link_libraries(dos-calc PRIVATE ${LAPACK_LIBRARIES})
 target_link_libraries(dos-calc PRIVATE ${BLAS_LIBRARIES})
 target_link_libraries(dos-calc PRIVATE ${FFTW_LIBRARIES})
-target_link_libraries(dos-calc PRIVATE m gfortran)
+target_link_libraries(dos-calc PRIVATE lapacke lapack cblas blas fftw3f m gfortran)
 
 install(TARGETS dos-calc
         RUNTIME DESTINATION bin
