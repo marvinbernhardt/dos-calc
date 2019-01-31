@@ -6,6 +6,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake")
 
 find_package(OpenMP REQUIRED)
 find_package(BLAS REQUIRED)
+find_package(LAPACK REQUIRED)
 find_package(FFTW REQUIRED)  # self defined
 
 if(NOT DEFINED ENV{GMXPREFIX})
@@ -36,7 +37,10 @@ endif()
 
 target_link_libraries(dos-calc PRIVATE OpenMP::OpenMP_C)
 target_link_libraries(dos-calc PRIVATE $ENV{GMXPREFIX}/lib64/libgromacs.so)
-target_link_libraries(dos-calc PRIVATE lapacke lapack cblas blas fftw3f m gfortran)
+target_link_libraries(dos-calc PRIVATE ${LAPACK_LIBRARIES})
+target_link_libraries(dos-calc PRIVATE ${BLAS_LIBRARIES})
+target_link_libraries(dos-calc PRIVATE ${FFTW_LIBRARIES})
+target_link_libraries(dos-calc PRIVATE m gfortran)
 
 install(TARGETS dos-calc
         RUNTIME DESTINATION bin
