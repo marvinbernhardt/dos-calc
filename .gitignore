@@ -1,4 +1,2 @@
-*.swp
-dos-calc
-dos-calc-develop
-archive
+archive/
+build/
