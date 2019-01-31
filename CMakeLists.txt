@@ -5,8 +5,8 @@ project(dos-calc VERSION 0.1 LANGUAGES C)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake")
 
 find_package(OpenMP REQUIRED)
-find_package(BLAS REQUIRED)
-find_package(LAPACK REQUIRED)
+find_package(CBLAS REQUIRED)  # self defined
+find_package(LAPACKE REQUIRED) # self defined
 find_package(FFTW REQUIRED)  # self defined
 
 if(NOT DEFINED ENV{GMXPREFIX})
@@ -14,12 +14,8 @@ if(NOT DEFINED ENV{GMXPREFIX})
 endif()
 
 add_executable(dos-calc src/dos-calc.c)
-
 target_compile_features(dos-calc PRIVATE c_std_99)
-
 target_include_directories(dos-calc PRIVATE src/)
-target_include_directories(dos-calc PRIVATE $ENV{GMXPREFIX}/include)
-
 target_compile_options(dos-calc PRIVATE $<$<C_COMPILER_ID:GNU>:-Wall -O3>)
 
 execute_process(
@@ -35,13 +31,13 @@ else()
     target_compile_definitions(dos-calc PRIVATE -DVERSION="${PROJECT_VERSION}-${GIT_BRANCH}")
 endif()
 
+target_include_directories(dos-calc PRIVATE $ENV{GMXPREFIX}/include)
 target_link_libraries(dos-calc PRIVATE OpenMP::OpenMP_C)
 target_link_libraries(dos-calc PRIVATE $ENV{GMXPREFIX}/lib64/libgromacs.so)
-target_link_libraries(dos-calc PRIVATE ${LAPACK_LIBRARIES})
-target_link_libraries(dos-calc PRIVATE ${BLAS_LIBRARIES})
+target_link_libraries(dos-calc PRIVATE ${CBLAS_LIBRARIES})
+target_link_libraries(dos-calc PRIVATE ${LAPACKE_LIBRARIES})
 target_link_libraries(dos-calc PRIVATE ${FFTW_LIBRARIES})
-target_link_libraries(dos-calc PRIVATE lapacke lapack cblas blas fftw3f m gfortran)
+target_link_libraries(dos-calc PRIVATE m gfortran)
 
 install(TARGETS dos-calc
-        RUNTIME DESTINATION bin
-        )
+        RUNTIME DESTINATION bin)
