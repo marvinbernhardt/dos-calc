@@ -6,15 +6,13 @@
 #include <cblas.h>
 #include <fftw3.h>
 
-//#define DEBUG
-
 #ifdef DEBUG
 #define DPRINT(...) do{ fprintf( stdout, __VA_ARGS__ ); } while( 0 )
 #else
 #define DPRINT(...)
 #endif
 
-int DOSCalculation (int nmoltypes,
+void DOSCalculation (int nmoltypes,
         long ntrajsteps,
         long nfftsteps,
         int* moltype_firstmol,
@@ -246,6 +244,4 @@ int DOSCalculation (int nmoltypes,
         free(fft_out_squared2);
         free(fft_out_squared3);
     }
-
-    return 0;
 }
