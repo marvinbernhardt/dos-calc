@@ -75,7 +75,7 @@ elif len(samples) == 1 or args.show_samples:
                 print(f"sample {sample}, moltype {moltype}")
             else:
                 factor = 1 / (np.trapz(doses_to_show[0]['data'][moltype]) / 3)
-                print(f"sample {sample}, integrals normalized to dos_trn/3")
+                print(f"sample {sample}, moltype {moltype}, normalized to dos_trn/3")
 
             for dos in doses_to_show:
                 if frequencies:
@@ -119,6 +119,21 @@ else:
 
         dos['mean'] = np.array(dos['data']).mean(axis=0)
         dos['std'] = np.array(dos['data']).std(axis=0)
+
+    # show dos integrals
+    for moltype in range(len(doses_to_show[0]['data'][0])):
+        if frequencies:
+            print(f"moltype {moltype}")
+        else:
+            factor = 1 / (np.trapz(doses_to_show[0]['mean'][moltype]) / 3)
+            print(f"moltype {moltype}")
+            print(f"sample {sample}, integrals normalized to dos_trn/3")
+
+        for dos in doses_to_show:
+            if frequencies:
+                print(f"integral {dos['name']}:", np.trapz(dos['mean'][moltype], frequencies))
+            else:
+                print(f"integral {dos['name']}:", np.trapz(dos['mean'][moltype]) * factor)
 
     # show dos plots
     fig, ax = plt.subplots()
