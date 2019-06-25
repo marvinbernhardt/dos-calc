@@ -142,10 +142,6 @@ int main( int argc, char *argv[] )
     FILE* ftv;
     FILE* frv;
 
-    // results of decomposeVelocities and DOSCalculation
-    int result = 0;
-    int result2 = 0;
-
     // start scanning
     verbPrintf(verbosity, "Start reading user input\n");
     verbPrintf(verbosity, "Reading integers\n");
@@ -325,6 +321,7 @@ int main( int argc, char *argv[] )
     int has_prop;
     r = calloc(natoms_traj, sizeof(*r));
     v = calloc(natoms_traj, sizeof(*v));
+    int result = 0;
     result = read_trr(traj, natoms_traj, &step, &time0, &lambda, box, r, v, NULL, &has_prop);
     if (result != 0) {
         fprintf(stderr, "ERROR: First frame of trajectory broken\n");
@@ -379,7 +376,7 @@ int main( int argc, char *argv[] )
             float* mol_omegas_sqrt_i_rot = calloc(nmols*3*nblocksteps, sizeof(float));
             float* atom_velocities_sqrt_m_vib = calloc(natoms*3*nblocksteps, sizeof(float));
 
-            result = decomposeVelocities (traj,
+            decomposeVelocities (traj,
                     nblocksteps,
                     natoms,
                     nmols,
@@ -455,7 +452,7 @@ int main( int argc, char *argv[] )
             }
 
             verbPrintf(verbosity, "start DoS calculation (FFT)\n");
-            result2 = DOSCalculation (nmoltypes,
+            DOSCalculation (nmoltypes,
                     nblocksteps,
                     nfftsteps,
                     moltypes_firstmol,
@@ -759,5 +756,5 @@ int main( int argc, char *argv[] )
     free(mols_mass);
     free(mols_firstatom);
 
-    return result + result2;
+    return 0;
 }

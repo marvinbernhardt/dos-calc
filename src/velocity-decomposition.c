@@ -29,7 +29,7 @@ float sqrt_neg_zero(float number)
         return sqrt(number);
 }
 
-int decomposeVelocities (XDRFILE* traj,
+void decomposeVelocities (XDRFILE* traj,
         long ntrajsteps,
         int natoms,
         int nmols,
@@ -95,7 +95,7 @@ int decomposeVelocities (XDRFILE* traj,
         if (read_trr(traj, natoms_traj, &step, &time, &lambda, box, r, v, NULL, &has_prop) != 0)
         {
             fprintf(stderr, "ERROR: Reading frame %i failed\n", t);
-            return 1;
+            exit(1);
         }
 
         DPRINT("There are %i atoms at step %i (time %f). My box is: %f %f %f \n",
@@ -526,5 +526,4 @@ int decomposeVelocities (XDRFILE* traj,
     // free help arrays
     free(r);
     free(v);
-    return 0;
 }
