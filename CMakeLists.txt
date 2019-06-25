@@ -26,18 +26,7 @@ if(DEBUG)
     target_compile_definitions(dos-calc PRIVATE -DDEBUG="1")
 endif(DEBUG)
 
-execute_process(
-  COMMAND git rev-parse --abbrev-ref HEAD
-  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-  OUTPUT_VARIABLE GIT_BRANCH
-  OUTPUT_STRIP_TRAILING_WHITESPACE
-)
-
-if(${GIT_BRANCH} STREQUAL "master")
-    target_compile_definitions(dos-calc PRIVATE -DVERSION="${PROJECT_VERSION}")
-else()
-    target_compile_definitions(dos-calc PRIVATE -DVERSION="${PROJECT_VERSION}-${GIT_BRANCH}")
-endif()
+target_compile_definitions(dos-calc PRIVATE -DVERSION="${PROJECT_VERSION}")
 
 target_include_directories(dos-calc PUBLIC ${xdrfile_INCLUDE_DIRS})
 target_link_libraries(dos-calc PRIVATE OpenMP::OpenMP_C)
