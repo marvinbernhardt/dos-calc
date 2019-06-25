@@ -15,7 +15,7 @@ export CMAKE_PREFIX_PATH=/path/to/libxdrfile
 mkdir build
 cd build
 cmake \
-    -DCMAKE_INSTALL_PREFIX=/where/you/want/dos-calc/installed \
+    -DCMAKE_INSTALL_PREFIX=/destination/for/dos-calc \
     ..
 make
 make install
