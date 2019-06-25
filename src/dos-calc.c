@@ -712,6 +712,7 @@ int main( int argc, char *argv[] )
 
         // free DoSes
         free(mol_moments_of_inertia);
+        free(moltypes_moments_of_inertia);
         free(moltypes_dos_raw_trn);
         free(moltypes_dos_raw_trn_x);
         free(moltypes_dos_raw_trn_y);
@@ -724,6 +725,9 @@ int main( int argc, char *argv[] )
         free(moltypes_dos_raw_vib_x);
         free(moltypes_dos_raw_vib_y);
         free(moltypes_dos_raw_vib_z);
+        free(moltypes_dos_raw_x_trn_rot);
+        free(moltypes_dos_raw_x_trn_vib);
+        free(moltypes_dos_raw_x_rot_vib);
     }
     verbPrintf(verbosity, "finished all samples\n");
 
