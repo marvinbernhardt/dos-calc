@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.8)
 
-project(dos-calc VERSION 0.1 LANGUAGES C CXX)
+project(dos-calc VERSION 0.2 LANGUAGES C CXX)
 
 option(USE_RPATH "Link to libraries in RPATH" ON)
 option(DEBUG "Turn on extensive debugging output" OFF)
