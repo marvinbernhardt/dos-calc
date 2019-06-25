@@ -4,8 +4,8 @@
 #include <stdbool.h>
 #include <argp.h>
 #include <cblas.h>
-#include "gromacs/fileio/gmxfio.h"
-#include "gromacs/fileio/trrio.h"
+#include "xdrfile.h"
+#include "xdrfile_trr.h"
 #include "velocity-decomposition.c"
 #include "fft.c"
 #include "verbPrintf.c"
@@ -288,42 +288,61 @@ int main( int argc, char *argv[] )
         }
     }
 
-
-    // open file
+    // read natoms_traj
     verbPrintf(verbosity, "starting with file %s\n", arguments.file);
-    t_fileio* trj_in = gmx_trr_open(arguments.file, "r");
+    int natoms_traj;
+    if (read_trr_natoms(arguments.file , &natoms_traj) != 0) {
+        fprintf(stderr, "ERROR: could not read number of atoms from %s\n", arguments.file);
+        return 1;
+    }
 
-    // read first two frames
-    verbPrintf(verbosity, "reading framelength from first two frame's timestamps: ");
-    float framelength;
-    gmx_trr_header_t header;
-    gmx_bool header_fine;
-    gmx_bool frame_fine;
-    header_fine = gmx_trr_read_frame_header(trj_in, &header, &header_fine);
-    frame_fine = gmx_trr_read_frame_data(trj_in, &header, NULL, NULL, NULL, NULL);
-    if (!frame_fine || !header_fine) {
-        fprintf(stderr, "ERROR: First frame of trajectory broken\n");
-        return 1;
-    }
-    framelength = - header.t;
-    header_fine = gmx_trr_read_frame_header(trj_in, &header, &header_fine);
-    if (!header_fine) {
-        fprintf(stderr, "ERROR: Second frame of trajectory broken\n");
-        return 1;
-    }
-    framelength += header.t;
-    verbPrintf(verbosity, "%f\n", framelength);
-    if (natoms > header.natoms) {
+    // warning when more or less natoms in traj
+    if (natoms > natoms_traj) {
         fprintf(stderr, "ERROR: The topology you give has more atoms than first frame of the trajectory\n");
         return 1;
     }
-    else if (natoms < header.natoms) {
+    else if (natoms < natoms_traj) {
         fprintf(stderr, "WARNING: The topology you give has less atoms than first frame of the trajectory\n");
         fprintf(stderr, "         Some atoms are ignored in every frame\n");
     }
 
+    // open file
+    XDRFILE* traj = xdrfile_open(arguments.file , "r");
+    if (traj == NULL) {
+        fprintf(stderr, "ERROR: could not open file %s\n", arguments.file);
+        return 1;
+    }
+
+    // read first two frames
+    verbPrintf(verbosity, "reading framelength from first two frame's timestamps: ");
+    float framelength;
+    int step;
+    float time0, time1;
+    float lambda;
+    matrix box;
+    rvec* r;
+    rvec* v;
+    int has_prop;
+    r = calloc(natoms_traj, sizeof(*r));
+    v = calloc(natoms_traj, sizeof(*v));
+    result = read_trr(traj, natoms_traj, &step, &time0, &lambda, box, r, v, NULL, &has_prop);
+    if (result != 0) {
+        fprintf(stderr, "ERROR: First frame of trajectory broken\n");
+        return 1;
+    }
+    result = read_trr(traj, natoms_traj, &step, &time1, &lambda, box, r, v, NULL, &has_prop);
+    if (result != 0) {
+        fprintf(stderr, "ERROR: Second frame of trajectory broken\n");
+        return 1;
+    }
+    framelength = time1 - time0;
+    verbPrintf(verbosity, "%f\n", framelength);
+    free(r);
+    free(v);
+
     // go back to start of file
-    gmx_fio_rewind(trj_in);
+    xdrfile_close(traj);
+    traj = xdrfile_open(arguments.file , "r");
 
     verbPrintf(verbosity, "going through %d samples\n", nsamples);
     for (int sample=0; sample<nsamples; sample++)
@@ -360,8 +379,7 @@ int main( int argc, char *argv[] )
             float* mol_omegas_sqrt_i_rot = calloc(nmols*3*nblocksteps, sizeof(float));
             float* atom_velocities_sqrt_m_vib = calloc(natoms*3*nblocksteps, sizeof(float));
 
-            result = decomposeVelocities (trj_in,
-                    header,
+            result = decomposeVelocities (traj,
                     nblocksteps,
                     natoms,
                     nmols,

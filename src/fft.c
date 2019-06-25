@@ -6,8 +6,6 @@
 #include <cblas.h>
 #include <fftw3.h>
 
-//#define DEBUG
-
 #ifdef DEBUG
 #define DPRINT(...) do{ fprintf( stdout, __VA_ARGS__ ); } while( 0 )
 #else

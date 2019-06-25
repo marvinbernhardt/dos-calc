@@ -2,6 +2,29 @@
 
 Calculation of translational, rotational and vibrational density of states
 
+## Dependencies
+
+- [libxdrfile](https://github.com/wesbarnett/libxdrfile) 
+
+## Installation
+
+```bash
+# needed only if libxdrfile is not installed globally
+export CMAKE_PREFIX_PATH=/path/to/libxdrfile 
+
+mkdir build
+cd build
+cmake \
+    -DCMAKE_INSTALL_PREFIX=/where/you/want/dos-calc/installed \
+    ..
+make
+make install
+```
+
+By default RPATH is used for the location of libxdrfile, but you can turn it of using `-DUSE_RPATH=OFF`.
+
+There is also a scripts folder, but those scripts are not automatically installed anywhere.
+
 ## Usage
 
 Check `dos-calc --help` for command line options.

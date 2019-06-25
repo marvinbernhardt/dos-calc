@@ -5,11 +5,10 @@
 #include <string.h>
 #include <cblas.h>
 #include <lapacke.h>
-#include "gromacs/fileio/gmxfio.h"
-#include "gromacs/fileio/trrio.h"
+#include "xdrfile.h"
+#include "xdrfile_trr.h"
 #include "linear-algebra.c"
 
-//#define DEBUG
 #ifdef DEBUG
 #define DPRINT(...) do{ fprintf( stdout, __VA_ARGS__ ); } while( 0 )
 #else
@@ -30,8 +29,7 @@ float sqrt_neg_zero(float number)
         return sqrt(number);
 }
 
-int decomposeVelocities (t_fileio* trj_in,
-        gmx_trr_header_t header,
+int decomposeVelocities (XDRFILE* traj,
         long ntrajsteps,
         int natoms,
         int nmols,
@@ -51,16 +49,21 @@ int decomposeVelocities (t_fileio* trj_in,
         float* mol_moments_of_inertia)
 {
     // for reading of frame
-    long step;
-    real time;
-    real lambda;
-    rvec box[3];
-    rvec* x = malloc(header.x_size * ntrajsteps);
-    rvec* v = malloc(header.v_size * ntrajsteps);
+    int natoms_traj = 0;
+    int step;
+    float time;
+    float lambda;
+    matrix box;
+    rvec *r;
+    rvec *v;
+    int has_prop;
+    r = calloc(natoms, sizeof(*r));
+    v = calloc(natoms, sizeof(*v));
 
     // no dynamic teams!!!
     omp_set_dynamic(0);
 
+    // per-molecule arrays
     static float* positions;
     static float* velocities;
     static float* positions_rel;
@@ -89,14 +92,14 @@ int decomposeVelocities (t_fileio* trj_in,
     DPRINT("start reading frame\n");
     for (int t=0; t<ntrajsteps; t++)
     {
-        if (gmx_trr_read_frame(trj_in, &step, &time, &lambda, box, &header.natoms, x, v, NULL) == FALSE)
+        if (read_trr(traj, natoms_traj, &step, &time, &lambda, box, r, v, NULL, &has_prop) != 0)
         {
-            fprintf(stderr, "ERROR: Reading frame failed\n");
-            //return 1;
+            fprintf(stderr, "ERROR: Reading frame %i failed\n", t);
+            return 1;
         }
 
         DPRINT("There are %i atoms at step %i (time %f). My box is: %f %f %f \n",
-                header.natoms, t, time, box[0][0], box[1][1], box[2][2]);
+                natoms_traj, t, time, box[0][0], box[1][1], box[2][2]);
 
         // loop over molecules
         #pragma omp parallel for
@@ -119,14 +122,14 @@ int decomposeVelocities (t_fileio* trj_in,
                     for(int j=1; j<m_natoms; j++)
                     {
                         int jj = m_firstatom + j;
-                        float dist_to_firstatom = x[jj][dim] - x[m_firstatom][dim];
+                        float dist_to_firstatom = r[jj][dim] - r[m_firstatom][dim];
                         if(dist_to_firstatom > 0.5 * box[dim][dim])
                         {
-                            x[jj][dim] -= box[dim][dim];
+                            r[jj][dim] -= box[dim][dim];
                         }
                         if(dist_to_firstatom < -0.5 * box[dim][dim])
                         {
-                            x[jj][dim] += box[dim][dim];
+                            r[jj][dim] += box[dim][dim];
                         }
                     }
                 }
@@ -138,9 +141,9 @@ int decomposeVelocities (t_fileio* trj_in,
                 int jj = m_firstatom + j;
                 DPRINT("scanning atom %d (nr. %d in molecule)\n", jj, j);
 
-                positions[3*j+0] = x[jj][0];
-                positions[3*j+1] = x[jj][1];
-                positions[3*j+2] = x[jj][2];
+                positions[3*j+0] = r[jj][0];
+                positions[3*j+1] = r[jj][1];
+                positions[3*j+2] = r[jj][2];
                 velocities[3*j+0] = v[jj][0];
                 velocities[3*j+1] = v[jj][1];
                 velocities[3*j+2] = v[jj][2];
@@ -521,7 +524,7 @@ int decomposeVelocities (t_fileio* trj_in,
     }
 
     // free help arrays
-    free(x);
+    free(r);
     free(v);
     return 0;
 }
