@@ -19,6 +19,8 @@ parser.add_argument('-x', '--cross', help='show cross DoS',
                     dest='show_cross', action='store_true')
 parser.add_argument('-s', '--samples', help='show samples individually',
                     dest='show_samples', action='store_true')
+parser.add_argument('-a', '--rotalt', help='show alternative DoS_rot',
+                    dest='show_rotalt', action='store_true')
 
 args = parser.parse_args()
 
@@ -32,14 +34,18 @@ else:
 
 doses = [
     {'name': 'dos_trn', 'tags': ['standard']},
-    {'name': 'dos_rot', 'tags': ['standard']},
+    {'name': 'dos_rot', 'tags': ['standard', 'notrotalt']},
+    {'name': 'dos_rotalt', 'tags': ['rotalt']},
     {'name': 'dos_vib', 'tags': ['standard']},
     {'name': 'dos_trn_x', 'tags': ['comp']},
     {'name': 'dos_trn_y', 'tags': ['comp']},
     {'name': 'dos_trn_z', 'tags': ['comp']},
-    {'name': 'dos_rot_a', 'tags': ['comp']},
-    {'name': 'dos_rot_b', 'tags': ['comp']},
-    {'name': 'dos_rot_c', 'tags': ['comp']},
+    {'name': 'dos_rot_a', 'tags': ['comp', 'notrotalt']},
+    {'name': 'dos_rot_b', 'tags': ['comp', 'notrotalt']},
+    {'name': 'dos_rot_c', 'tags': ['comp', 'notrotalt']},
+    {'name': 'dos_rotalt_x', 'tags': ['rotalt', 'comp']},
+    {'name': 'dos_rotalt_y', 'tags': ['rotalt', 'comp']},
+    {'name': 'dos_rotalt_z', 'tags': ['rotalt', 'comp']},
     {'name': 'dos_vib_x', 'tags': ['comp']},
     {'name': 'dos_vib_y', 'tags': ['comp']},
     {'name': 'dos_vib_z', 'tags': ['comp']},
@@ -50,21 +56,23 @@ doses = [
 
 samples = [int(dos_trn_file.split('_')[0].split('e')[1]) for dos_trn_file in glob.glob('sample*_dos_trn.txt')]
 
+# filter which doses to show
+tag_bool_dict = {
+    'standard': True,
+    'comp': args.show_components,
+    'cross': args.show_cross,
+    'rotalt': args.show_rotalt,
+    'notrotalt': not args.show_rotalt}
+
+doses_to_show = []
+for dos in doses:
+    if all((tag_bool_dict[tag] for tag in dos['tags'])):
+        doses_to_show.append(dos)
+
 if len(samples) == 0:
     raise Exception("ERROR: No dos found to show!")
 elif len(samples) == 1 or args.show_samples:
     for sample in samples:
-
-        # filter which doses to show
-        doses_to_show = []
-        for dos in doses:
-            if 'standard' in dos['tags']:
-                doses_to_show.append(dos)
-            if 'comp' in dos['tags'] and args.show_components:
-                doses_to_show.append(dos)
-            if 'cross' in dos['tags'] and args.show_cross:
-                doses_to_show.append(dos)
-
         # load data from files
         for dos in doses_to_show:
             dos['data'] = np.array(pd.read_csv(f"sample{sample}_{dos['name']}.txt", sep=' ', header=None))
@@ -100,16 +108,6 @@ elif len(samples) == 1 or args.show_samples:
     plt.show()
 
 else:
-    # filter which doses to show
-    doses_to_show = []
-    for dos in doses:
-        if 'standard' in dos['tags']:
-            doses_to_show.append(dos)
-        if 'comp' in dos['tags'] and args.show_components:
-            doses_to_show.append(dos)
-        if 'cross' in dos['tags'] and args.show_cross:
-            doses_to_show.append(dos)
-
     # load data from files
     for dos in doses_to_show:
 

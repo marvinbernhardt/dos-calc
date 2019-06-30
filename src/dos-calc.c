@@ -24,6 +24,7 @@ static struct argp_option options[] = {
     {"verbose",     'v', 0,      0, "Produce verbose output"},
     {"components",  'c', 0,      0, "Compute xyz components of trn and vib and abc of rot"},
     {"cross",       'x', 0,      0, "Compute cross-spectrum of translational with rotationalas DoF"},
+    {"rot-alt",     'a', 0,      0, "Additionally output alternative DoS_rot, calculated from v_rot."},
     {"file",        'f', "FILE", 0, "Input .trr trajectory file (default: traj.trr)"},
     {"no-pbc",      'p', 0,      0, "Do not recombine molecules seperated by periodic boundary conditions"},
     {"temperature", 't', "TEMP", 0, "Temperature in trajectory (in K). If given, the DoS normalized!"},
@@ -36,6 +37,7 @@ struct arguments
     bool verbosity;
     bool calc_components;
     bool calc_cross;
+    bool calc_rot_alt;
     char *file;
     bool no_pbc;
     float temperature;
@@ -60,6 +62,9 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
             break;
         case 'x':
             arguments->calc_cross = true;
+            break;
+        case 'a':
+            arguments->calc_rot_alt = true;
             break;
         case 'f':
             arguments->file = arg;
@@ -103,6 +108,7 @@ int main( int argc, char *argv[] )
     arguments.verbosity = false;
     arguments.calc_components = false;
     arguments.calc_cross = false;
+    arguments.calc_rot_alt = false;
     arguments.file = "traj.trr";
     arguments.no_pbc = false;
     arguments.temperature = 0.0;
@@ -357,6 +363,10 @@ int main( int argc, char *argv[] )
         float* moltypes_dos_raw_rot_a = calloc(nmoltypes*nfftsteps, sizeof(float));
         float* moltypes_dos_raw_rot_b = calloc(nmoltypes*nfftsteps, sizeof(float));
         float* moltypes_dos_raw_rot_c = calloc(nmoltypes*nfftsteps, sizeof(float));
+        float* moltypes_dos_raw_rot_alt = calloc(nmoltypes*nfftsteps, sizeof(float)); // alternative dos_rot
+        float* moltypes_dos_raw_rot_alt_x = calloc(nmoltypes*nfftsteps, sizeof(float));
+        float* moltypes_dos_raw_rot_alt_y = calloc(nmoltypes*nfftsteps, sizeof(float));
+        float* moltypes_dos_raw_rot_alt_z = calloc(nmoltypes*nfftsteps, sizeof(float));
         float* moltypes_dos_raw_vib = calloc(nmoltypes*nfftsteps, sizeof(float));
         float* moltypes_dos_raw_vib_x = calloc(nmoltypes*nfftsteps, sizeof(float));
         float* moltypes_dos_raw_vib_y = calloc(nmoltypes*nfftsteps, sizeof(float));
@@ -375,6 +385,7 @@ int main( int argc, char *argv[] )
             float* mol_velocities_sqrt_m_trn = calloc(nmols*3*nblocksteps, sizeof(float));
             float* mol_omegas_sqrt_i_rot = calloc(nmols*3*nblocksteps, sizeof(float));
             float* atom_velocities_sqrt_m_vib = calloc(natoms*3*nblocksteps, sizeof(float));
+            float* atom_velocities_sqrt_m_rot = calloc(natoms*3*nblocksteps, sizeof(float));
 
             decomposeVelocities (traj,
                     nblocksteps,
@@ -393,6 +404,7 @@ int main( int argc, char *argv[] )
                     mol_velocities_sqrt_m_trn,
                     mol_omegas_sqrt_i_rot,
                     atom_velocities_sqrt_m_vib,
+                    atom_velocities_sqrt_m_rot,
                     mol_moments_of_inertia);
 
             // dump first block only!
@@ -449,6 +461,23 @@ int main( int argc, char *argv[] )
                     }
                 }
                 fclose(f);
+
+                f = fopen("atom_velocities_sqrt_m_rot.txt", "w");
+                for (int h=0; h<nmoltypes; h++)
+                {
+                    int first_dof_vib = moltypes_firstatom[h]*3;
+                    int last_dof_vib = moltypes_firstatom[h]*3 + moltypes_nmols[h]*moltypes_natomspermol[h]*3;
+                    for (int i=first_dof_vib; i<last_dof_vib; i++)
+                    {
+                        for (int t=0; t<nblocksteps; t++)
+                        {
+                            if (t!=0) fprintf(f, " ");
+                            fprintf(f, "%f", atom_velocities_sqrt_m_rot[i*nblocksteps + t]);
+                        }
+                        fprintf(f, "\n");
+                    }
+                }
+                fclose(f);
             }
 
             verbPrintf(verbosity, "start DoS calculation (FFT)\n");
@@ -462,8 +491,10 @@ int main( int argc, char *argv[] )
                     mol_velocities_sqrt_m_trn,
                     mol_omegas_sqrt_i_rot,
                     atom_velocities_sqrt_m_vib,
+                    atom_velocities_sqrt_m_rot,
                     arguments.calc_components,
                     arguments.calc_cross,
+                    arguments.calc_rot_alt,
                     moltypes_dos_raw_trn, //output
                     moltypes_dos_raw_trn_x,
                     moltypes_dos_raw_trn_y,
@@ -472,6 +503,10 @@ int main( int argc, char *argv[] )
                     moltypes_dos_raw_rot_a,
                     moltypes_dos_raw_rot_b,
                     moltypes_dos_raw_rot_c,
+                    moltypes_dos_raw_rot_alt,
+                    moltypes_dos_raw_rot_alt_x,
+                    moltypes_dos_raw_rot_alt_y,
+                    moltypes_dos_raw_rot_alt_z,
                     moltypes_dos_raw_vib,
                     moltypes_dos_raw_vib_x,
                     moltypes_dos_raw_vib_y,
@@ -484,6 +519,7 @@ int main( int argc, char *argv[] )
             free(mol_velocities_sqrt_m_trn);
             free(mol_omegas_sqrt_i_rot);
             free(atom_velocities_sqrt_m_vib);
+            free(atom_velocities_sqrt_m_rot);
         }
         verbPrintf(verbosity, "finished all blocks\n");
 
@@ -514,6 +550,10 @@ int main( int argc, char *argv[] )
             cblas_sscal(nfftsteps, norm_factor, &moltypes_dos_raw_vib_x[h*nfftsteps], 1);
             cblas_sscal(nfftsteps, norm_factor, &moltypes_dos_raw_vib_y[h*nfftsteps], 1);
             cblas_sscal(nfftsteps, norm_factor, &moltypes_dos_raw_vib_z[h*nfftsteps], 1);
+            cblas_sscal(nfftsteps, norm_factor, &moltypes_dos_raw_rot_alt[h*nfftsteps], 1);
+            cblas_sscal(nfftsteps, norm_factor, &moltypes_dos_raw_rot_alt_x[h*nfftsteps], 1);
+            cblas_sscal(nfftsteps, norm_factor, &moltypes_dos_raw_rot_alt_y[h*nfftsteps], 1);
+            cblas_sscal(nfftsteps, norm_factor, &moltypes_dos_raw_rot_alt_z[h*nfftsteps], 1);
             cblas_sscal(nfftsteps, norm_factor, &moltypes_dos_raw_x_trn_rot[h*nfftsteps], 1);
             cblas_sscal(nfftsteps, norm_factor, &moltypes_dos_raw_x_trn_vib[h*nfftsteps], 1);
             cblas_sscal(nfftsteps, norm_factor, &moltypes_dos_raw_x_rot_vib[h*nfftsteps], 1);
@@ -531,6 +571,7 @@ int main( int argc, char *argv[] )
             cblas_sscal(3, 1.0 / (float) moltypes_nmols[h], &moltypes_moments_of_inertia[3*h], 1);
         }
 
+        // translational spectrum
         char filename[255] = {0};
         sprintf(filename, "sample%d_dos_trn.txt", sample);
         f = fopen(filename, "w");
@@ -578,6 +619,7 @@ int main( int argc, char *argv[] )
             fclose(fc);
         }
 
+        // rotational spectrum
         sprintf(filename, "sample%d_dos_rot.txt", sample);
         f = fopen(filename, "w");
 
@@ -624,38 +666,7 @@ int main( int argc, char *argv[] )
             fclose(fc);
         }
 
-        // cross spectra
-        if (arguments.calc_cross)
-        {
-            char filenametrnrot[255] = {0};
-            char filenametrnvib[255] = {0};
-            char filenamerotvib[255] = {0};
-            sprintf(filenametrnrot, "sample%d_dos_x_trn_rot.txt", sample);
-            sprintf(filenametrnvib, "sample%d_dos_x_trn_vib.txt", sample);
-            sprintf(filenamerotvib, "sample%d_dos_x_rot_vib.txt", sample);
-            ftr = fopen(filenametrnrot, "w");
-            ftv = fopen(filenametrnvib, "w");
-            frv = fopen(filenamerotvib, "w");
-            for (int h=0; h<nmoltypes; h++)
-            {
-                for (int t=0; t<nfftsteps; t++)
-                {
-                    if (t!=0) fprintf(ftr, " ");
-                    if (t!=0) fprintf(ftv, " ");
-                    if (t!=0) fprintf(frv, " ");
-                    fprintf(ftr, "%f", moltypes_dos_raw_x_trn_rot[h*nfftsteps + t]);
-                    fprintf(ftv, "%f", moltypes_dos_raw_x_trn_vib[h*nfftsteps + t]);
-                    fprintf(frv, "%f", moltypes_dos_raw_x_rot_vib[h*nfftsteps + t]);
-                }
-                fprintf(ftr, "\n");
-                fprintf(ftv, "\n");
-                fprintf(frv, "\n");
-            }
-            fclose(ftr);
-            fclose(ftv);
-            fclose(frv);
-        }
-
+        // vibrational spectrum
         sprintf(filename, "sample%d_dos_vib.txt", sample);
         f = fopen(filename, "w");
         for (int h=0; h<nmoltypes; h++)
@@ -701,6 +712,88 @@ int main( int argc, char *argv[] )
             fclose(fc);
         }
 
+        // rotational alternative spectrum
+        if (arguments.calc_rot_alt)
+        {
+            sprintf(filename, "sample%d_dos_rotalt.txt", sample);
+            f = fopen(filename, "w");
+            for (int h=0; h<nmoltypes; h++)
+            {
+                for (int t=0; t<nfftsteps; t++)
+                {
+                    if (t!=0) fprintf(f, " ");
+                    fprintf(f, "%f", moltypes_dos_raw_rot_alt[h*nfftsteps + t]);
+                }
+                fprintf(f, "\n");
+            }
+            fclose(f);
+
+            // individual axis (xyz) rotational alternative spectrum
+            if (arguments.calc_components)
+            {
+                char filenamea[255] = {0};
+                char filenameb[255] = {0};
+                char filenamec[255] = {0};
+                sprintf(filenamea, "sample%d_dos_rotalt_x.txt", sample);
+                sprintf(filenameb, "sample%d_dos_rotalt_y.txt", sample);
+                sprintf(filenamec, "sample%d_dos_rotalt_z.txt", sample);
+                fa = fopen(filenamea, "w");
+                fb = fopen(filenameb, "w");
+                fc = fopen(filenamec, "w");
+                for (int h=0; h<nmoltypes; h++)
+                {
+                    for (int t=0; t<nfftsteps; t++)
+                    {
+                        if (t!=0) fprintf(fa, " ");
+                        if (t!=0) fprintf(fb, " ");
+                        if (t!=0) fprintf(fc, " ");
+                        fprintf(fa, "%f", moltypes_dos_raw_rot_alt_x[h*nfftsteps + t]);
+                        fprintf(fb, "%f", moltypes_dos_raw_rot_alt_y[h*nfftsteps + t]);
+                        fprintf(fc, "%f", moltypes_dos_raw_rot_alt_z[h*nfftsteps + t]);
+                    }
+                    fprintf(fa, "\n");
+                    fprintf(fb, "\n");
+                    fprintf(fc, "\n");
+                }
+                fclose(fa);
+                fclose(fb);
+                fclose(fc);
+            }
+        }
+
+        // cross spectra
+        if (arguments.calc_cross)
+        {
+            char filenametrnrot[255] = {0};
+            char filenametrnvib[255] = {0};
+            char filenamerotvib[255] = {0};
+            sprintf(filenametrnrot, "sample%d_dos_x_trn_rot.txt", sample);
+            sprintf(filenametrnvib, "sample%d_dos_x_trn_vib.txt", sample);
+            sprintf(filenamerotvib, "sample%d_dos_x_rot_vib.txt", sample);
+            ftr = fopen(filenametrnrot, "w");
+            ftv = fopen(filenametrnvib, "w");
+            frv = fopen(filenamerotvib, "w");
+            for (int h=0; h<nmoltypes; h++)
+            {
+                for (int t=0; t<nfftsteps; t++)
+                {
+                    if (t!=0) fprintf(ftr, " ");
+                    if (t!=0) fprintf(ftv, " ");
+                    if (t!=0) fprintf(frv, " ");
+                    fprintf(ftr, "%f", moltypes_dos_raw_x_trn_rot[h*nfftsteps + t]);
+                    fprintf(ftv, "%f", moltypes_dos_raw_x_trn_vib[h*nfftsteps + t]);
+                    fprintf(frv, "%f", moltypes_dos_raw_x_rot_vib[h*nfftsteps + t]);
+                }
+                fprintf(ftr, "\n");
+                fprintf(ftv, "\n");
+                fprintf(frv, "\n");
+            }
+            fclose(ftr);
+            fclose(ftv);
+            fclose(frv);
+        }
+
+        // moments of inertia
         sprintf(filename, "sample%d_moments_of_inertia.txt", sample);
         f = fopen(filename, "w");
         for (int h=0; h<nmoltypes; h++)
@@ -721,6 +814,10 @@ int main( int argc, char *argv[] )
         free(moltypes_dos_raw_rot_a);
         free(moltypes_dos_raw_rot_b);
         free(moltypes_dos_raw_rot_c);
+        free(moltypes_dos_raw_rot_alt);
+        free(moltypes_dos_raw_rot_alt_x);
+        free(moltypes_dos_raw_rot_alt_y);
+        free(moltypes_dos_raw_rot_alt_z);
         free(moltypes_dos_raw_vib);
         free(moltypes_dos_raw_vib_x);
         free(moltypes_dos_raw_vib_y);

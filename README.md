@@ -24,6 +24,8 @@ make install
 By default RPATH is used for the location of libxdrfile, but you can turn it of using `-DUSE_RPATH=OFF`.
 If turned off, libxdrfile.so has to be in a standard directory or in `LD_LIBRARY_PATH`.
 
+When cmake is run with `-DDEBUG=ON` a lot of intermediate results will be printed during runtime.
+
 There is also a scripts folder, but those scripts are not automatically installed anywhere.
 
 ## Usage

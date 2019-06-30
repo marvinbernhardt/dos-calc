@@ -22,8 +22,10 @@ void DOSCalculation (int nmoltypes,
         float* mol_velocities_sqrt_m_trn,
         float* mol_omegas_sqrt_i_rot,
         float* atom_velocities_sqrt_m_vib,
+        float* atom_velocities_sqrt_m_rot,
         bool calc_components,
         bool calc_cross,
+        bool calc_rot_alt,
         float* moltype_dos_raw_trn,  // output
         float* moltype_dos_raw_trn_x,
         float* moltype_dos_raw_trn_y,
@@ -32,6 +34,10 @@ void DOSCalculation (int nmoltypes,
         float* moltype_dos_raw_rot_a,
         float* moltype_dos_raw_rot_b,
         float* moltype_dos_raw_rot_c,
+        float* moltype_dos_raw_rot_alt,
+        float* moltype_dos_raw_rot_alt_x,
+        float* moltype_dos_raw_rot_alt_y,
+        float* moltype_dos_raw_rot_alt_z,
         float* moltype_dos_raw_vib,
         float* moltype_dos_raw_vib_x,
         float* moltype_dos_raw_vib_y,
@@ -53,6 +59,7 @@ void DOSCalculation (int nmoltypes,
         fftwf_complex* fft_out_rotb = fftwf_malloc(sizeof(fftwf_complex) * nfftsteps);
         fftwf_complex* fft_out_rotc = fftwf_malloc(sizeof(fftwf_complex) * nfftsteps);
         fftwf_complex* fft_out_vib = fftwf_malloc(sizeof(fftwf_complex) * nfftsteps);
+        fftwf_complex* fft_out_rotalt = fftwf_malloc(sizeof(fftwf_complex) * nfftsteps);
         float* fft_out_squared1 = calloc(nfftsteps, sizeof(float));
         float* fft_out_squared2 = calloc(nfftsteps, sizeof(float));
         float* fft_out_squared3 = calloc(nfftsteps, sizeof(float));
@@ -66,6 +73,8 @@ void DOSCalculation (int nmoltypes,
         fftwf_plan plan_rotc = fftwf_plan_dft_r2c_1d(ntrajsteps, fft_in, fft_out_rotc, FFTW_MEASURE);
         DPRINT("creating plan vibration\n");
         fftwf_plan plan_vib = fftwf_plan_dft_r2c_1d(ntrajsteps, fft_in, fft_out_vib, FFTW_MEASURE);
+        DPRINT("creating plan rotation alternative\n");
+        fftwf_plan plan_rotalt = fftwf_plan_dft_r2c_1d(ntrajsteps, fft_in, fft_out_rotalt, FFTW_MEASURE);
 
         int first_mol = moltype_firstmol[h];
         int last_mol = moltype_firstmol[h] + moltype_nmols[h];
@@ -169,6 +178,7 @@ void DOSCalculation (int nmoltypes,
             }
 
             // vibration and other cross terms
+            // and alternative rotation
             DPRINT("vibrational fft\n");
             int first_dof_vib = 3*moltype_firstatom[h] + 3*(i-moltype_firstmol[h])*moltype_natomspermol[h];
             int last_dof_vib = first_dof_vib + 3*moltype_natomspermol[h];
@@ -194,6 +204,30 @@ void DOSCalculation (int nmoltypes,
                     if (df % 3 == 0) {cblas_saxpy(nfftsteps, 1.0, fft_out_squared1, 1, &moltype_dos_raw_vib_x[h*nfftsteps], 1);}
                     if (df % 3 == 1) {cblas_saxpy(nfftsteps, 1.0, fft_out_squared1, 1, &moltype_dos_raw_vib_y[h*nfftsteps], 1);}
                     if (df % 3 == 2) {cblas_saxpy(nfftsteps, 1.0, fft_out_squared1, 1, &moltype_dos_raw_vib_z[h*nfftsteps], 1);}
+                }
+
+                if (calc_rot_alt)
+                {
+                    DPRINT("rotational alternative fft nr %d\n", df);
+                    memcpy(fft_in, &atom_velocities_sqrt_m_rot[df*ntrajsteps], ntrajsteps * sizeof(float) );
+                    fftwf_execute(plan_rotalt);
+
+                    DPRINT("abs and square of fft\n");
+                    for (int t=0; t<nfftsteps; t++)
+                    {
+                        fft_out_squared1[t] = cabs(fft_out_rotalt[t] * fft_out_rotalt[t]);
+                    }
+
+                    DPRINT("add to moltype dos\n");
+                    cblas_saxpy(nfftsteps, 1.0, fft_out_squared1, 1, &moltype_dos_raw_rot_alt[h*nfftsteps], 1);
+
+                    if (calc_components)
+                    {
+                        DPRINT("add to moltype dos (rotalt components)\n");
+                        if (df % 3 == 0) {cblas_saxpy(nfftsteps, 1.0, fft_out_squared1, 1, &moltype_dos_raw_rot_alt_x[h*nfftsteps], 1);}
+                        if (df % 3 == 1) {cblas_saxpy(nfftsteps, 1.0, fft_out_squared1, 1, &moltype_dos_raw_rot_alt_y[h*nfftsteps], 1);}
+                        if (df % 3 == 2) {cblas_saxpy(nfftsteps, 1.0, fft_out_squared1, 1, &moltype_dos_raw_rot_alt_z[h*nfftsteps], 1);}
+                    }
                 }
 
                 DPRINT("cross terms trn vib\n");
@@ -232,6 +266,7 @@ void DOSCalculation (int nmoltypes,
         fftwf_destroy_plan(plan_rotb);
         fftwf_destroy_plan(plan_rotc);
         fftwf_destroy_plan(plan_vib);
+        fftwf_destroy_plan(plan_rotalt);
         free(fft_in);
         fftwf_free(fft_out_trnx);
         fftwf_free(fft_out_trny);
@@ -240,6 +275,7 @@ void DOSCalculation (int nmoltypes,
         fftwf_free(fft_out_rotb);
         fftwf_free(fft_out_rotc);
         fftwf_free(fft_out_vib);
+        fftwf_free(fft_out_rotalt);
         free(fft_out_squared1);
         free(fft_out_squared2);
         free(fft_out_squared3);
