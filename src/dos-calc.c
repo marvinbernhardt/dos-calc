@@ -24,10 +24,10 @@ static struct argp_option options[] = {
     {"verbose",     'v', 0,      0, "Produce verbose output"},
     {"components",  'c', 0,      0, "Compute xyz components of trn and vib and abc of rot"},
     {"cross",       'x', 0,      0, "Compute cross-spectrum of translational with rotationalas DoF"},
-    {"rot-alt",     'a', 0,      0, "Additionally output alternative DoS_rot, calculated from v_rot."},
+    {"rot-alt",     'a', 0,      0, "Additionally output alternative DoS_rot, calculated from v_rot"},
     {"file",        'f', "FILE", 0, "Input .trr trajectory file (default: traj.trr)"},
     {"no-pbc",      'p', 0,      0, "Do not recombine molecules seperated by periodic boundary conditions"},
-    {"temperature", 't', "TEMP", 0, "Temperature in trajectory (in K). If given, the DoS normalized!"},
+    {"temperature", 't', "TEMP", 0, "Temperature in trajectory (in K); if given, the DoS normalized"},
     { 0 }
 };
 
@@ -194,7 +194,7 @@ int main( int argc, char *argv[] )
 
     for (int h=0; h<nmoltypes; h++)
     {
-        verbPrintf(verbosity, "now reading moltype %d of %d.\n", h+1, nmoltypes);
+        verbPrintf(verbosity, "now reading moltype %d of %d\n", h+1, nmoltypes);
 
         verbPrintf(verbosity, "moltype %d nmols: ", h+1);
         if (scanf("%d", &moltypes_nmols[h]) != 1)
