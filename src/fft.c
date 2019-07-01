@@ -13,7 +13,7 @@
 #endif
 
 void DOSCalculation (int nmoltypes,
-        long ntrajsteps,
+        long nblocksteps,
         long nfftsteps,
         int* moltype_firstmol,
         int* moltype_firstatom,
@@ -51,7 +51,7 @@ void DOSCalculation (int nmoltypes,
     for (int h=0; h<nmoltypes; h++)
     {
         DPRINT("moltype nr %d\n", h);
-        float* fft_in = calloc(ntrajsteps, sizeof(float));
+        float* fft_in = calloc(nblocksteps, sizeof(float));
         fftwf_complex* fft_out_trnx = fftwf_malloc(sizeof(fftwf_complex) * nfftsteps);
         fftwf_complex* fft_out_trny = fftwf_malloc(sizeof(fftwf_complex) * nfftsteps);
         fftwf_complex* fft_out_trnz = fftwf_malloc(sizeof(fftwf_complex) * nfftsteps);
@@ -64,17 +64,17 @@ void DOSCalculation (int nmoltypes,
         float* fft_out_squared2 = calloc(nfftsteps, sizeof(float));
         float* fft_out_squared3 = calloc(nfftsteps, sizeof(float));
         DPRINT("creating plans translation\n");
-        fftwf_plan plan_trnx = fftwf_plan_dft_r2c_1d(ntrajsteps, fft_in, fft_out_trnx, FFTW_MEASURE);
-        fftwf_plan plan_trny = fftwf_plan_dft_r2c_1d(ntrajsteps, fft_in, fft_out_trny, FFTW_MEASURE);
-        fftwf_plan plan_trnz = fftwf_plan_dft_r2c_1d(ntrajsteps, fft_in, fft_out_trnz, FFTW_MEASURE);
+        fftwf_plan plan_trnx = fftwf_plan_dft_r2c_1d(nblocksteps, fft_in, fft_out_trnx, FFTW_MEASURE);
+        fftwf_plan plan_trny = fftwf_plan_dft_r2c_1d(nblocksteps, fft_in, fft_out_trny, FFTW_MEASURE);
+        fftwf_plan plan_trnz = fftwf_plan_dft_r2c_1d(nblocksteps, fft_in, fft_out_trnz, FFTW_MEASURE);
         DPRINT("creating plans rotational\n");
-        fftwf_plan plan_rota = fftwf_plan_dft_r2c_1d(ntrajsteps, fft_in, fft_out_rota, FFTW_MEASURE);
-        fftwf_plan plan_rotb = fftwf_plan_dft_r2c_1d(ntrajsteps, fft_in, fft_out_rotb, FFTW_MEASURE);
-        fftwf_plan plan_rotc = fftwf_plan_dft_r2c_1d(ntrajsteps, fft_in, fft_out_rotc, FFTW_MEASURE);
+        fftwf_plan plan_rota = fftwf_plan_dft_r2c_1d(nblocksteps, fft_in, fft_out_rota, FFTW_MEASURE);
+        fftwf_plan plan_rotb = fftwf_plan_dft_r2c_1d(nblocksteps, fft_in, fft_out_rotb, FFTW_MEASURE);
+        fftwf_plan plan_rotc = fftwf_plan_dft_r2c_1d(nblocksteps, fft_in, fft_out_rotc, FFTW_MEASURE);
         DPRINT("creating plan vibration\n");
-        fftwf_plan plan_vib = fftwf_plan_dft_r2c_1d(ntrajsteps, fft_in, fft_out_vib, FFTW_MEASURE);
+        fftwf_plan plan_vib = fftwf_plan_dft_r2c_1d(nblocksteps, fft_in, fft_out_vib, FFTW_MEASURE);
         DPRINT("creating plan rotation alternative\n");
-        fftwf_plan plan_rotalt = fftwf_plan_dft_r2c_1d(ntrajsteps, fft_in, fft_out_rotalt, FFTW_MEASURE);
+        fftwf_plan plan_rotalt = fftwf_plan_dft_r2c_1d(nblocksteps, fft_in, fft_out_rotalt, FFTW_MEASURE);
 
         int first_mol = moltype_firstmol[h];
         int last_mol = moltype_firstmol[h] + moltype_nmols[h];
@@ -83,11 +83,11 @@ void DOSCalculation (int nmoltypes,
             DPRINT("molecule nr %d\n", i);
             // translation
             DPRINT("translational fft\n");
-            memcpy(fft_in, &mol_velocities_sqrt_m_trn[(3*i+0)*ntrajsteps], ntrajsteps * sizeof(float) );
+            memcpy(fft_in, &mol_velocities_sqrt_m_trn[(3*i+0)*nblocksteps], nblocksteps * sizeof(float) );
             fftwf_execute(plan_trnx);
-            memcpy(fft_in, &mol_velocities_sqrt_m_trn[(3*i+1)*ntrajsteps], ntrajsteps * sizeof(float) );
+            memcpy(fft_in, &mol_velocities_sqrt_m_trn[(3*i+1)*nblocksteps], nblocksteps * sizeof(float) );
             fftwf_execute(plan_trny);
-            memcpy(fft_in, &mol_velocities_sqrt_m_trn[(3*i+2)*ntrajsteps], ntrajsteps * sizeof(float) );
+            memcpy(fft_in, &mol_velocities_sqrt_m_trn[(3*i+2)*nblocksteps], nblocksteps * sizeof(float) );
             fftwf_execute(plan_trnz);
 
             DPRINT("abs and square of fft\n");
@@ -112,11 +112,11 @@ void DOSCalculation (int nmoltypes,
 
             // rotation
             DPRINT("rotational fft\n");
-            memcpy(fft_in, &mol_omegas_sqrt_i_rot[(3*i+0)*ntrajsteps], ntrajsteps * sizeof(float) );
+            memcpy(fft_in, &mol_omegas_sqrt_i_rot[(3*i+0)*nblocksteps], nblocksteps * sizeof(float) );
             fftwf_execute(plan_rota);
-            memcpy(fft_in, &mol_omegas_sqrt_i_rot[(3*i+1)*ntrajsteps], ntrajsteps * sizeof(float) );
+            memcpy(fft_in, &mol_omegas_sqrt_i_rot[(3*i+1)*nblocksteps], nblocksteps * sizeof(float) );
             fftwf_execute(plan_rotb);
-            memcpy(fft_in, &mol_omegas_sqrt_i_rot[(3*i+2)*ntrajsteps], ntrajsteps * sizeof(float) );
+            memcpy(fft_in, &mol_omegas_sqrt_i_rot[(3*i+2)*nblocksteps], nblocksteps * sizeof(float) );
             fftwf_execute(plan_rotc);
 
             DPRINT("abs and square of fft\n");
@@ -186,7 +186,7 @@ void DOSCalculation (int nmoltypes,
             for (int df=first_dof_vib; df<last_dof_vib; df++)
             {
                 DPRINT("vibrational fft nr %d\n", df);
-                memcpy(fft_in, &atom_velocities_sqrt_m_vib[df*ntrajsteps], ntrajsteps * sizeof(float) );
+                memcpy(fft_in, &atom_velocities_sqrt_m_vib[df*nblocksteps], nblocksteps * sizeof(float) );
                 fftwf_execute(plan_vib);
 
                 DPRINT("abs and square of fft\n");
@@ -209,7 +209,7 @@ void DOSCalculation (int nmoltypes,
                 if (calc_rot_alt)
                 {
                     DPRINT("rotational alternative fft nr %d\n", df);
-                    memcpy(fft_in, &atom_velocities_sqrt_m_rot[df*ntrajsteps], ntrajsteps * sizeof(float) );
+                    memcpy(fft_in, &atom_velocities_sqrt_m_rot[df*nblocksteps], nblocksteps * sizeof(float) );
                     fftwf_execute(plan_rotalt);
 
                     DPRINT("abs and square of fft\n");
