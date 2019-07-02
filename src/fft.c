@@ -48,36 +48,70 @@ void DOSCalculation (int nmoltypes,
 {
     DPRINT("starting with FFT of translational and rotational dofs\n");
 
+    // no dynamic teams!!!
+    omp_set_dynamic(0);
+
     for (int h=0; h<nmoltypes; h++)
     {
         DPRINT("moltype nr %d\n", h);
-        float* fft_in = calloc(nblocksteps, sizeof(float));
-        fftwf_complex* fft_out_trnx = fftwf_malloc(sizeof(fftwf_complex) * nfftsteps);
-        fftwf_complex* fft_out_trny = fftwf_malloc(sizeof(fftwf_complex) * nfftsteps);
-        fftwf_complex* fft_out_trnz = fftwf_malloc(sizeof(fftwf_complex) * nfftsteps);
-        fftwf_complex* fft_out_rota = fftwf_malloc(sizeof(fftwf_complex) * nfftsteps);
-        fftwf_complex* fft_out_rotb = fftwf_malloc(sizeof(fftwf_complex) * nfftsteps);
-        fftwf_complex* fft_out_rotc = fftwf_malloc(sizeof(fftwf_complex) * nfftsteps);
-        fftwf_complex* fft_out_vib = fftwf_malloc(sizeof(fftwf_complex) * nfftsteps);
-        fftwf_complex* fft_out_rotalt = fftwf_malloc(sizeof(fftwf_complex) * nfftsteps);
-        float* fft_out_squared1 = calloc(nfftsteps, sizeof(float));
-        float* fft_out_squared2 = calloc(nfftsteps, sizeof(float));
-        float* fft_out_squared3 = calloc(nfftsteps, sizeof(float));
-        DPRINT("creating plans translation\n");
-        fftwf_plan plan_trnx = fftwf_plan_dft_r2c_1d(nblocksteps, fft_in, fft_out_trnx, FFTW_MEASURE);
-        fftwf_plan plan_trny = fftwf_plan_dft_r2c_1d(nblocksteps, fft_in, fft_out_trny, FFTW_MEASURE);
-        fftwf_plan plan_trnz = fftwf_plan_dft_r2c_1d(nblocksteps, fft_in, fft_out_trnz, FFTW_MEASURE);
-        DPRINT("creating plans rotational\n");
-        fftwf_plan plan_rota = fftwf_plan_dft_r2c_1d(nblocksteps, fft_in, fft_out_rota, FFTW_MEASURE);
-        fftwf_plan plan_rotb = fftwf_plan_dft_r2c_1d(nblocksteps, fft_in, fft_out_rotb, FFTW_MEASURE);
-        fftwf_plan plan_rotc = fftwf_plan_dft_r2c_1d(nblocksteps, fft_in, fft_out_rotc, FFTW_MEASURE);
-        DPRINT("creating plan vibration\n");
-        fftwf_plan plan_vib = fftwf_plan_dft_r2c_1d(nblocksteps, fft_in, fft_out_vib, FFTW_MEASURE);
-        DPRINT("creating plan rotation alternative\n");
-        fftwf_plan plan_rotalt = fftwf_plan_dft_r2c_1d(nblocksteps, fft_in, fft_out_rotalt, FFTW_MEASURE);
+        static fftwf_complex* fft_out_trnx;
+        static fftwf_complex* fft_out_trny;
+        static fftwf_complex* fft_out_trnz;
+        static fftwf_complex* fft_out_rota;
+        static fftwf_complex* fft_out_rotb;
+        static fftwf_complex* fft_out_rotc;
+        static fftwf_complex* fft_out_vib;
+        static fftwf_complex* fft_out_rotalt;
+        #pragma omp threadprivate(fft_out_trnx, fft_out_trny, fft_out_trnz, fft_out_rota, fft_out_rotb, fft_out_rotc, fft_out_vib, fft_out_rotalt)
+
+        #pragma omp parallel
+        {
+            fft_out_trnx = fftwf_malloc(sizeof(fftwf_complex) * nfftsteps);
+            fft_out_trny = fftwf_malloc(sizeof(fftwf_complex) * nfftsteps);
+            fft_out_trnz = fftwf_malloc(sizeof(fftwf_complex) * nfftsteps);
+            fft_out_rota = fftwf_malloc(sizeof(fftwf_complex) * nfftsteps);
+            fft_out_rotb = fftwf_malloc(sizeof(fftwf_complex) * nfftsteps);
+            fft_out_rotc = fftwf_malloc(sizeof(fftwf_complex) * nfftsteps);
+            fft_out_vib = fftwf_malloc(sizeof(fftwf_complex) * nfftsteps);
+            fft_out_rotalt = fftwf_malloc(sizeof(fftwf_complex) * nfftsteps);
+        }
+        static float* fft_in;
+        static float* fft_out_squared1;
+        static float* fft_out_squared2;
+        static float* fft_out_squared3;
+        #pragma omp threadprivate(fft_in, fft_out_squared1, fft_out_squared2, fft_out_squared3)
+        #pragma omp parallel
+        {
+            fft_in = calloc(nblocksteps, sizeof(float));
+            fft_out_squared1 = calloc(nfftsteps, sizeof(float));
+            fft_out_squared2 = calloc(nfftsteps, sizeof(float));
+            fft_out_squared3 = calloc(nfftsteps, sizeof(float));
+        }
+        DPRINT("creating fftw plans\n");
+        static fftwf_plan plan_trnx;
+        static fftwf_plan plan_trny;
+        static fftwf_plan plan_trnz;
+        static fftwf_plan plan_rota;
+        static fftwf_plan plan_rotb;
+        static fftwf_plan plan_rotc;
+        static fftwf_plan plan_vib;
+        static fftwf_plan plan_rotalt;
+        #pragma omp threadprivate(plan_trnx, plan_trny, plan_trnz, plan_rota, plan_rotb, plan_rotc, plan_vib, plan_rotalt)
+        #pragma omp parallel
+        {
+            plan_trnx = fftwf_plan_dft_r2c_1d(nblocksteps, fft_in, fft_out_trnx, FFTW_MEASURE);
+            plan_trny = fftwf_plan_dft_r2c_1d(nblocksteps, fft_in, fft_out_trny, FFTW_MEASURE);
+            plan_trnz = fftwf_plan_dft_r2c_1d(nblocksteps, fft_in, fft_out_trnz, FFTW_MEASURE);
+            plan_rota = fftwf_plan_dft_r2c_1d(nblocksteps, fft_in, fft_out_rota, FFTW_MEASURE);
+            plan_rotb = fftwf_plan_dft_r2c_1d(nblocksteps, fft_in, fft_out_rotb, FFTW_MEASURE);
+            plan_rotc = fftwf_plan_dft_r2c_1d(nblocksteps, fft_in, fft_out_rotc, FFTW_MEASURE);
+            plan_vib = fftwf_plan_dft_r2c_1d(nblocksteps, fft_in, fft_out_vib, FFTW_MEASURE);
+            plan_rotalt = fftwf_plan_dft_r2c_1d(nblocksteps, fft_in, fft_out_rotalt, FFTW_MEASURE);
+        }
 
         int first_mol = moltype_firstmol[h];
         int last_mol = moltype_firstmol[h] + moltype_nmols[h];
+        #pragma omp parallel for
         for (int i=first_mol; i<last_mol; i++)
         {
             DPRINT("molecule nr %d\n", i);
@@ -98,16 +132,21 @@ void DOSCalculation (int nmoltypes,
                 fft_out_squared3[t] = cabs(fft_out_trnz[t] * fft_out_trnz[t]);
             }
             DPRINT("add to moltype dos\n");
-            cblas_saxpy(nfftsteps, 1.0, fft_out_squared1, 1, &moltype_dos_raw_trn[h*nfftsteps], 1);
-            cblas_saxpy(nfftsteps, 1.0, fft_out_squared2, 1, &moltype_dos_raw_trn[h*nfftsteps], 1);
-            cblas_saxpy(nfftsteps, 1.0, fft_out_squared3, 1, &moltype_dos_raw_trn[h*nfftsteps], 1);
-
-            if (calc_components)
+            #pragma omp critical (add_dos_trn)
             {
-                DPRINT("add to moltype dos (trn components)\n");
-                cblas_saxpy(nfftsteps, 1.0, fft_out_squared1, 1, &moltype_dos_raw_trn_x[h*nfftsteps], 1);
-                cblas_saxpy(nfftsteps, 1.0, fft_out_squared2, 1, &moltype_dos_raw_trn_y[h*nfftsteps], 1);
-                cblas_saxpy(nfftsteps, 1.0, fft_out_squared3, 1, &moltype_dos_raw_trn_z[h*nfftsteps], 1);
+                cblas_saxpy(nfftsteps, 1.0, fft_out_squared1, 1, &moltype_dos_raw_trn[h*nfftsteps], 1);
+                cblas_saxpy(nfftsteps, 1.0, fft_out_squared2, 1, &moltype_dos_raw_trn[h*nfftsteps], 1);
+                cblas_saxpy(nfftsteps, 1.0, fft_out_squared3, 1, &moltype_dos_raw_trn[h*nfftsteps], 1);
+
+                if (calc_components)
+                {
+                    DPRINT("add to moltype dos (trn components)\n");
+                    {
+                        cblas_saxpy(nfftsteps, 1.0, fft_out_squared1, 1, &moltype_dos_raw_trn_x[h*nfftsteps], 1);
+                        cblas_saxpy(nfftsteps, 1.0, fft_out_squared2, 1, &moltype_dos_raw_trn_y[h*nfftsteps], 1);
+                        cblas_saxpy(nfftsteps, 1.0, fft_out_squared3, 1, &moltype_dos_raw_trn_z[h*nfftsteps], 1);
+                    }
+                }
             }
 
             // rotation
@@ -128,55 +167,66 @@ void DOSCalculation (int nmoltypes,
             }
 
             DPRINT("add to moltype dos\n");
-            cblas_saxpy(nfftsteps, 1.0, fft_out_squared1, 1, &moltype_dos_raw_rot[h*nfftsteps], 1);
-            cblas_saxpy(nfftsteps, 1.0, fft_out_squared2, 1, &moltype_dos_raw_rot[h*nfftsteps], 1);
-            cblas_saxpy(nfftsteps, 1.0, fft_out_squared3, 1, &moltype_dos_raw_rot[h*nfftsteps], 1);
-
-            if (calc_components)
+            #pragma omp critical (add_dos_rot)
             {
-                DPRINT("add to moltype dos (rot components)\n");
-                cblas_saxpy(nfftsteps, 1.0, fft_out_squared1, 1, &moltype_dos_raw_rot_a[h*nfftsteps], 1);
-                cblas_saxpy(nfftsteps, 1.0, fft_out_squared2, 1, &moltype_dos_raw_rot_b[h*nfftsteps], 1);
-                cblas_saxpy(nfftsteps, 1.0, fft_out_squared3, 1, &moltype_dos_raw_rot_c[h*nfftsteps], 1);
+                cblas_saxpy(nfftsteps, 1.0, fft_out_squared1, 1, &moltype_dos_raw_rot[h*nfftsteps], 1);
+                cblas_saxpy(nfftsteps, 1.0, fft_out_squared2, 1, &moltype_dos_raw_rot[h*nfftsteps], 1);
+                cblas_saxpy(nfftsteps, 1.0, fft_out_squared3, 1, &moltype_dos_raw_rot[h*nfftsteps], 1);
+
+                if (calc_components)
+                {
+                    DPRINT("add to moltype dos (rot components)\n");
+                    {
+                        cblas_saxpy(nfftsteps, 1.0, fft_out_squared1, 1, &moltype_dos_raw_rot_a[h*nfftsteps], 1);
+                        cblas_saxpy(nfftsteps, 1.0, fft_out_squared2, 1, &moltype_dos_raw_rot_b[h*nfftsteps], 1);
+                        cblas_saxpy(nfftsteps, 1.0, fft_out_squared3, 1, &moltype_dos_raw_rot_c[h*nfftsteps], 1);
+                    }
+                }
             }
 
             // cross trn rot
             if (calc_cross)
             {
-                DPRINT("cross terms\n");
-                DPRINT("abs and multiply fft\n");
-                for (int t=0; t<nfftsteps; t++)
+                #pragma omp critical (add_dos_cross)
                 {
-                    fft_out_squared1[t] = cabs(fft_out_trnx[t] * fft_out_rota[t]);
-                    fft_out_squared2[t] = cabs(fft_out_trnx[t] * fft_out_rotb[t]);
-                    fft_out_squared3[t] = cabs(fft_out_trnx[t] * fft_out_rotc[t]);
-                }
-                DPRINT("add to moltype dos\n");
-                cblas_saxpy(nfftsteps, 1.0, fft_out_squared1, 1, &moltype_dos_raw_x_trn_rot[h*nfftsteps], 1);
-                cblas_saxpy(nfftsteps, 1.0, fft_out_squared2, 1, &moltype_dos_raw_x_trn_rot[h*nfftsteps], 1);
-                cblas_saxpy(nfftsteps, 1.0, fft_out_squared3, 1, &moltype_dos_raw_x_trn_rot[h*nfftsteps], 1);
+                    DPRINT("cross terms\n");
+                    DPRINT("abs and multiply fft\n");
+                    for (int t=0; t<nfftsteps; t++)
+                    {
+                        fft_out_squared1[t] = cabs(fft_out_trnx[t] * fft_out_rota[t]);
+                        fft_out_squared2[t] = cabs(fft_out_trnx[t] * fft_out_rotb[t]);
+                        fft_out_squared3[t] = cabs(fft_out_trnx[t] * fft_out_rotc[t]);
+                    }
+                    DPRINT("add to moltype dos\n");
+                    cblas_saxpy(nfftsteps, 1.0, fft_out_squared1, 1, &moltype_dos_raw_x_trn_rot[h*nfftsteps], 1);
+                    cblas_saxpy(nfftsteps, 1.0, fft_out_squared2, 1, &moltype_dos_raw_x_trn_rot[h*nfftsteps], 1);
+                    cblas_saxpy(nfftsteps, 1.0, fft_out_squared3, 1, &moltype_dos_raw_x_trn_rot[h*nfftsteps], 1);
 
-                for (int t=0; t<nfftsteps; t++)
-                {
-                    fft_out_squared1[t] = cabs(fft_out_trny[t] * fft_out_rota[t]);
-                    fft_out_squared2[t] = cabs(fft_out_trny[t] * fft_out_rotb[t]);
-                    fft_out_squared3[t] = cabs(fft_out_trny[t] * fft_out_rotc[t]);
-                }
-                cblas_saxpy(nfftsteps, 1.0, fft_out_squared1, 1, &moltype_dos_raw_x_trn_rot[h*nfftsteps], 1);
-                cblas_saxpy(nfftsteps, 1.0, fft_out_squared2, 1, &moltype_dos_raw_x_trn_rot[h*nfftsteps], 1);
-                cblas_saxpy(nfftsteps, 1.0, fft_out_squared3, 1, &moltype_dos_raw_x_trn_rot[h*nfftsteps], 1);
+                    for (int t=0; t<nfftsteps; t++)
+                    {
+                        fft_out_squared1[t] = cabs(fft_out_trny[t] * fft_out_rota[t]);
+                        fft_out_squared2[t] = cabs(fft_out_trny[t] * fft_out_rotb[t]);
+                        fft_out_squared3[t] = cabs(fft_out_trny[t] * fft_out_rotc[t]);
+                    }
+                    cblas_saxpy(nfftsteps, 1.0, fft_out_squared1, 1, &moltype_dos_raw_x_trn_rot[h*nfftsteps], 1);
+                    cblas_saxpy(nfftsteps, 1.0, fft_out_squared2, 1, &moltype_dos_raw_x_trn_rot[h*nfftsteps], 1);
+                    cblas_saxpy(nfftsteps, 1.0, fft_out_squared3, 1, &moltype_dos_raw_x_trn_rot[h*nfftsteps], 1);
 
-                for (int t=0; t<nfftsteps; t++)
-                {
-                    fft_out_squared1[t] = cabs(fft_out_trnz[t] * fft_out_rota[t]);
-                    fft_out_squared2[t] = cabs(fft_out_trnz[t] * fft_out_rotb[t]);
-                    fft_out_squared3[t] = cabs(fft_out_trnz[t] * fft_out_rotc[t]);
+                    for (int t=0; t<nfftsteps; t++)
+                    {
+                        fft_out_squared1[t] = cabs(fft_out_trnz[t] * fft_out_rota[t]);
+                        fft_out_squared2[t] = cabs(fft_out_trnz[t] * fft_out_rotb[t]);
+                        fft_out_squared3[t] = cabs(fft_out_trnz[t] * fft_out_rotc[t]);
+                    }
+                    cblas_saxpy(nfftsteps, 1.0, fft_out_squared1, 1, &moltype_dos_raw_x_trn_rot[h*nfftsteps], 1);
+                    cblas_saxpy(nfftsteps, 1.0, fft_out_squared2, 1, &moltype_dos_raw_x_trn_rot[h*nfftsteps], 1);
+                    cblas_saxpy(nfftsteps, 1.0, fft_out_squared3, 1, &moltype_dos_raw_x_trn_rot[h*nfftsteps], 1);
                 }
-                cblas_saxpy(nfftsteps, 1.0, fft_out_squared1, 1, &moltype_dos_raw_x_trn_rot[h*nfftsteps], 1);
-                cblas_saxpy(nfftsteps, 1.0, fft_out_squared2, 1, &moltype_dos_raw_x_trn_rot[h*nfftsteps], 1);
-                cblas_saxpy(nfftsteps, 1.0, fft_out_squared3, 1, &moltype_dos_raw_x_trn_rot[h*nfftsteps], 1);
             }
+        }
 
+        for (int i=first_mol; i<last_mol; i++)
+        {
             // vibration and other cross terms
             // and alternative rotation
             DPRINT("vibrational fft\n");
