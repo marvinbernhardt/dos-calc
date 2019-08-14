@@ -1,9 +1,12 @@
-# dos-calc
+# DosCalc
 
 Calculation of translational, rotational and vibrational density of states
 
 ## Dependencies
 
+- CBLAS
+- LAPACKE
+- FFTW
 - [libxdrfile](https://github.com/wesbarnett/libxdrfile) 
 
 ## Installation
@@ -59,12 +62,12 @@ The following visualisation shows you the effect of `nsamples = 2` and `nblocks 
 ```
 In the consequence the trajectory must have equal or more than `nsamples * nblocks * nblocksteps` frames with positions and velocities.
 
-For each sample dos-calc will generate DoS files. Each sample can consist of multipe blocks that contribute to the sample's DoS (for example to reduce noise).
+For each sample DosCalc will generate DoS files. Each sample can consist of multipe blocks that contribute to the sample's DoS (for example to reduce noise).
 
 ## Rotational treatment
 
 Every molecule has three principal axes of rotation.
-They are calculated in dos-calc, but the algorithm depends on the moleules point group.
+They are calculated in DosCalc but the algorithm depends on the moleules point group.
 You set two variables for this:
 - `moltypeX_rot_treat`, which is a char that determines the method used
 - `moltypeX_abc_indicators`, which is four int numbers, that determine two pairs of atoms (zero indexed).

@@ -164,6 +164,7 @@ void decomposeVelocities (XDRFILE* traj,
                     mol_velocities_sqrt_m_trn[3*nblocksteps*i + nblocksteps*dim + t] = velocities[dim] * sqrt(m_mass);
                     mol_omegas_sqrt_i_rot[3*nblocksteps*i + nblocksteps*dim + t] = 0;
                     atom_velocities_sqrt_m_vib[3*nblocksteps*atom + nblocksteps*dim + t] = 0;
+                    atom_velocities_sqrt_m_rot[3*nblocksteps*atom + nblocksteps*dim + t] = 0;
                 }
                 continue;
             }
@@ -465,7 +466,7 @@ void decomposeVelocities (XDRFILE* traj,
             for (int dim=0; dim<3; dim++)
             {
                 // 'f'ollowing the principal or abc axis; original method
-                if ((m_rot_treat == 'f') || (m_rot_treat == 'g'))
+                if ((m_rot_treat == 'f'))
                 {
                     mol_omegas_sqrt_i_rot[3*nblocksteps*i + nblocksteps*dim + t] = angular_velocity_nc[dim] * sqrt(moments_of_inertia[dim]);
                 }

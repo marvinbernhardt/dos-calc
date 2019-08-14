@@ -830,7 +830,7 @@ int main( int argc, char *argv[] )
 
     verbPrintf(verbosity, "generating frequencies.txt\n");
     f = fopen("frequencies.txt", "w");
-    for (int i=0; i<nblocksteps/2+1; i++)
+    for (int i=0; i<nfftsteps; i++)
     {
         if (i!=0) fprintf(f, " ");
         fprintf(f, "%f", i / (framelength * nblocksteps));
