@@ -14,6 +14,7 @@ Calculation of translational, rotational and vibrational density of states
 ```bash
 # needed only if libxdrfile is not installed globally
 export CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/path/to/libxdrfile 
+
 export DCMAKE_INSTALL_PREFIX=/destination/for/dos-calc
 
 mkdir build
