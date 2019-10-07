@@ -28,19 +28,19 @@ make install
 popd
 ```
 
-By default RPATH is used for the location of libxdrfile, but you can turn it of using `-DUSE_RPATH=OFF`.
+By default RPATH is used for the location of libxdrfile.so and libcjson.so.1, but it can be turned off using `-DUSE_RPATH=OFF`.
 If turned off, libxdrfile.so and libcjson.so.1 have to be in a standard directory or in `LD_LIBRARY_PATH` at runtime.
 
-When cmake is run with `-DDEBUG=ON` a lot of intermediate results will be printed during runtime.
-This will mostly be useful for small test systems.
+When cmake is run with `-DDEBUG=ON` a lot of intermediate results are printed during runtime.
+This is mostly be useful for very small test systems.
 
 There is also a scripts folder, but those scripts are not automatically installed anywhere.
 
 ## Usage
 
 Check `dos-calc --help` for command line options.
-In any case you need to provide a parameter file in JSON format (e.g. `params.json`) and a trajectory in trr format (e.g. `traj.trr`).
-The output will be written to the JSON file `dos.json` or whatever filename specified with `-o`.
+In any case one needs to provide a parameter file in JSON format (e.g. `params.json`) and a trajectory in trr format (e.g. `traj.trr`).
+The output is be written to the JSON file `dos.json` or whatever filename specified with `-o`.
 
 ## Input
 
@@ -79,7 +79,7 @@ A example params.json of a mixture of three-point model water with united atom m
 
 ### Samples and Blocks
 
-The following visualisation shows you the effect of `nsamples = 2` and `nblocks = 3`.
+The following visualisation shows the effect of `nsamples = 2` and `nblocks = 3`.
 
 ```
 ---------------------trajectory----------------------
@@ -88,7 +88,7 @@ The following visualisation shows you the effect of `nsamples = 2` and `nblocks 
 ```
 In the consequence the trajectory must have equal or more than `nsamples * nblocks * nblocksteps` frames with positions and velocities.
 
-For each sample DosCalc will generate DoS files. Each sample can consist of multipe blocks that contribute to the sample's DoS (for example to reduce noise).
+For each sample DosCalc is generating power spectra in the output file. Each sample can consist of multipe blocks that contribute to the sample's DoS (for example to reduce noise).
 
 ### Moltypes (Topology)
 
@@ -97,7 +97,7 @@ The order of moltypes and the atoms must reflect the structure of the trajectory
 - `nmols` is the number of molecules of that type.
 - `atom_masses` indicates the atoms of each molecule of that type.
 
-You can define less atoms in total, than are present in the trajectory (will produce a warning) but not more (will produce an error).
+One can define less atoms in total, than are present in the trajectory (produces a warning) but not more (produces an error).
 
 ### Rotational treatment
 
@@ -109,28 +109,30 @@ For each moltype there is also:
   These atom pairs define the helping vectors a, b and c, that are related to the true principal axes (from lowest to highest moment of inertia)
   The first two numbers define a, the second two define b'. c is the cross product of a and b', b is the cross product of c and a.
 
-- For atoms and monoatomic ions (if `atom_masses` has only one element) `rot_treat` and `abc_indicators` both will be ignored.
-- For linear molecules set `"rot_treat": "l"`. `abc_indicators`  will be ignored.
-  The rotational DoS will be with regard to the axes x, y, and z (but still be called `rot_a`, ... in the output file.
+Depending on the point group of the molecule the following needs to be defined:
+
+- For atoms and monoatomic ions (if `atom_masses` has only one element) `rot_treat` and `abc_indicators` both are ignored.
+- For linear molecules set `"rot_treat": "l"`. `abc_indicators` is ignored.
+  The rotational DoS is calculated with regard to the axes x, y, and z (but still be called `rot_a`, ... in the output file.
   Tested only for diatomic molecules.
 - For molecules where the axis can swap order by vibration, for example ammonia, set `"rot_treat": "a"` and `"abc_indicators": [1, 2, 0 -1]`.
   Ammonia has atoms N H H H. Therefore 1 2 defines vector a between two hydrogens. 0 -1 defines vector b' from the nitrogen atom to the COM and thereby along the symmetry axis.
-  You can not use the actual principal axes of rotation of the molecule, because they swap order during vibration.
-  The rotational DoS will be with regard to a, b and c.
-  Note, that this will yield unusable results, if a, b and c are not close to the actual principal axes.
+  One can not use the actual principal axes of rotation of the molecule, because they swap order during vibration.
+  The rotational DoS is calculated be with regard to a, b and c.
+  Note, that this does yield unusable results, if a, b and c are not close to the actual principal axes.
 - For other molecules, for example water, set `"rot_treat": "f"` and `"abc_indicators": [1, 2, 0 -1]`.
   Water has atoms O H H. Therefore 1 2 defines vector a between the two hydrogens. 0 -1 defines vector b' along the symmetry axis.
-  The rotational DoS will be with regard the actual principal axes of rotation.
-  a, b and c will be used to check, that the actual axis derived from the moment of inertia tensor, always point in the same direction.
-  This will be the correct choice for most molecules, especially larger ones.
-- If you do not want any velocity separation use `"rot_treat": "u"` and the unseparated DoS will be output to `vib_{x,y,z}`.
+  The rotational DoS is calculated with regard to the actual principal axes of rotation.
+  The vectors a, b and c are used to ensure, that the actual axis derived from the moment of inertia tensor, always point in the same direction.
+  This will likely be the correct choice for most molecules, especially larger ones.
+- If one does not want any velocity separation `"rot_treat": "u"` can be used and the unseparated DoS is written to `vib_{x,y,z}`.
 
 ### Cross spectrum
 
 The `name` of a `cross spectrum` can be up to 79 characters long and can help identify the specified cross correlation in the output file.
 The `type` of a `cross spectrum` can be "i" for inside or "e" for external.
-Option "i" will result in a cross correlation of degrees of freedom within molecules and an average over molecules.
-Option "e" will correlate all specified degrees of freedom from all matching molecules (can take a long time).
+Option "i" does result in a cross correlation of degrees of freedom within molecules and an average over molecules.
+Option "e" does correlate all specified degrees of freedom from all matching molecules (can take a long time).
 
 The variable `dof_type` can be one of:
 
@@ -246,7 +248,7 @@ A verbal (and therefore not exact) description of the DoS components:
 ## Limitations
 
 - PBC recombination does not work for non-orthorhombic boxes.
-  However you can make all molecules whole in the trajectory (`gmx trjconv -pbc mol`) before using `dos-calc` and then use the --no-pbc option.
+  However one can make all molecules whole in the trajectory (`gmx trjconv -pbc mol`) before using `dos-calc` and then use the --no-pbc option.
   Whole molecules are alowed to jump between frames so a full unwrapping of the trajectory is not necessary.
 - The program uses single precision.
 - Linear molecules are assumed to be diatomic.
