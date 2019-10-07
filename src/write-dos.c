@@ -16,7 +16,7 @@ int write_to_file(const char *filename, char *content)
 int write_dos(const char *dos_file,
         size_t nsamples,
         unsigned long nblocksteps,
-        unsigned long nfftsteps,
+        unsigned long nfrequencies,
         float framelength,
         size_t ndos,
         size_t ncross_spectra,
@@ -34,7 +34,7 @@ int write_dos(const char *dos_file,
     // frequencies
     cJSON *frequencies = cJSON_AddArrayToObject(root, "frequencies");
     if (frequencies == NULL) return 1;
-    for (unsigned long t=0; t<nfftsteps; t++)
+    for (unsigned long t=0; t<nfrequencies; t++)
     {
         cJSON *number = cJSON_CreateNumber(t / (framelength * (float)nblocksteps));
         if (number == NULL) return 1;
@@ -83,12 +83,12 @@ int write_dos(const char *dos_file,
                 cJSON_AddItemToArray(dos_data, dos_data_sample);
 
                 // fill dos_data_sample array
-                for (unsigned long t=0; t<nfftsteps; t++)
+                for (unsigned long t=0; t<nfrequencies; t++)
                 {
                     int index =
-                        h*ndos*nsamples*nfftsteps
-                        +    d*nsamples*nfftsteps
-                        +        sample*nfftsteps
+                        h*ndos*nsamples*nfrequencies
+                        +    d*nsamples*nfrequencies
+                        +        sample*nfrequencies
                         +                       t;
                     // single number
                     cJSON *number = cJSON_CreateNumber(moltypes_dos_samples[index]);
@@ -149,11 +149,11 @@ int write_dos(const char *dos_file,
             cJSON_AddItemToArray(dos_data, dos_data_sample);
 
             // fill dos_data_sample array
-            for (unsigned long t=0; t<nfftsteps; t++)
+            for (unsigned long t=0; t<nfrequencies; t++)
             {
                 size_t index =
-                    +          d*nsamples*nfftsteps
-                    +              sample*nfftsteps
+                    +          d*nsamples*nfrequencies
+                    +              sample*nfrequencies
                     +                             t;
                 // single number
                 cJSON *number = cJSON_CreateNumber(moltypes_dos_cross_samples[index]);

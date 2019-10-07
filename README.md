@@ -17,6 +17,7 @@ Calculation of translational, rotational and vibrational density of states
 CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/path/to/libxdrfile 
 CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/path/to/cJSON
 export CMAKE_PREFIX_PATH
+
 INSTALL_PREFIX=/destination/for/dos-calc
 
 mkdir build
@@ -28,7 +29,7 @@ popd
 ```
 
 By default RPATH is used for the location of libxdrfile, but you can turn it of using `-DUSE_RPATH=OFF`.
-If turned off, libxdrfile.so and libcjson.so.1 have to be in a standard directory or in `LD_LIBRARY_PATH`.
+If turned off, libxdrfile.so and libcjson.so.1 have to be in a standard directory or in `LD_LIBRARY_PATH` at runtime.
 
 When cmake is run with `-DDEBUG=ON` a lot of intermediate results will be printed during runtime.
 This will mostly be useful for small test systems.
@@ -41,9 +42,9 @@ Check `dos-calc --help` for command line options.
 In any case you need to provide a parameter file in JSON format (e.g. `params.json`) and a trajectory in trr format (e.g. `traj.trr`).
 The output will be written to the JSON file `dos.json` or whatever filename specified with `-o`.
 
-## Parameter JSON
+## Input
 
-A short example:
+A example params.json of a mixture of three-point model water with united atom methanol.
 ```
 {
     "nsamples": 5,
@@ -71,28 +72,12 @@ A short example:
             [
                 [{"moltype": 0, "dof_type": "t", "dof_list": [0, 1, 2]}, {"moltype": 0, "dof_type": "v", "dof_list": [0, 1, 2, 3, 4, 5, 6, 7, 8]}]
             ]
-        },
+        }
     ]
 }
 ```
 
-The order of moltypes and the atoms therein must reflect your trajectory!
-
-The `type` of a `cross spectrum` can be either "i" for inside molecule.
-This will result in a cross correlation of degrees of freedom within molecules and an average over molecules.
-The other option is "e" for external, which will correlate all specified degrees of freedom from all matching molecules (can take a long time).
-
-The variable `dof_type` can be one of:
-
-- "t" for translational xyz-component of the molecule. Possible indices for dof_list: 0, 1, 2.
-- "r" for rotational xyz-component of each atom in the molecule. Possible indices for dof_list: 0, 1, ..., 3*mol_natoms.
-- "v" for vibrational xyz-component of each atom in the molecule. Possible indices for dof_list: 0, 1, ..., 3*mol_natoms.
-- "o" for rotational abc-component of the molecule. Possible indices for dof_list: 0, 1, 2.
-
-Here, mol_natoms indicates the number of atoms in one molecule of the chosen moleculetype.
-
-
-## Samples and Blocks
+### Samples and Blocks
 
 The following visualisation shows you the effect of `nsamples = 2` and `nblocks = 3`.
 
@@ -105,38 +90,167 @@ In the consequence the trajectory must have equal or more than `nsamples * nbloc
 
 For each sample DosCalc will generate DoS files. Each sample can consist of multipe blocks that contribute to the sample's DoS (for example to reduce noise).
 
-## Rotational treatment
+### Moltypes (Topology)
 
-Every molecule has three principal axes of rotation.
-They are calculated in DosCalc but the algorithm depends on the moleules point group.
-You set two variables for this:
-- `moltypeX_rot_treat`, which is a char that determines the method used
-- `moltypeX_abc_indicators`, which is four int numbers, that determine two pairs of atoms (zero indexed).
+The order of moltypes and the atoms must reflect the structure of the trajectory!
+
+- `nmols` is the number of molecules of that type.
+- `atom_masses` indicates the atoms of each molecule of that type.
+
+You can define less atoms in total, than are present in the trajectory (will produce a warning) but not more (will produce an error).
+
+### Rotational treatment
+
+For each moltype there is also:
+
+- `rot_treat`, which is a char that determines the method used for the rotational treatment.
+- `abc_indicators`, which is a list of four integers, which indicate two pairs of atoms (zero indexed).
   If the number is -1 it stands for the center of mass of the molecule.
   These atom pairs define the helping vectors a, b and c, that are related to the true principal axes (from lowest to highest moment of inertia)
-  The first two numbers set a, the second two set b'. c is the cross product of a and b', b is the cross product of c and a.
+  The first two numbers define a, the second two define b'. c is the cross product of a and b', b is the cross product of c and a.
 
-- for atoms and monoatomic ions `moltypeX_rot_treat` and `moltypeX_abc_indicators` both will be ignored, if `moltypeX_natomspermol == 1`.
-- for linear molecules set `moltypeX_rot_treat = 'l'` and `moltypeX_abc_indicators = 0 0 0 0` (the latter will be ignored).
-  The rotational DoS will be with regard to the axes x, y, and z.
+- For atoms and monoatomic ions (if `atom_masses` has only one element) `rot_treat` and `abc_indicators` both will be ignored.
+- For linear molecules set `"rot_treat": "l"`. `abc_indicators`  will be ignored.
+  The rotational DoS will be with regard to the axes x, y, and z (but still be called `rot_a`, ... in the output file.
   Tested only for diatomic molecules.
-- for molecules where the axis can swap order by vibration, for example ammonia, set `moltypeX_rot_treat = 'a'` and `moltypeX_abc_indicators = 1 2 0 -1`.
+- For molecules where the axis can swap order by vibration, for example ammonia, set `"rot_treat": "a"` and `"abc_indicators": [1, 2, 0 -1]`.
   Ammonia has atoms N H H H. Therefore 1 2 defines vector a between two hydrogens. 0 -1 defines vector b' from the nitrogen atom to the COM and thereby along the symmetry axis.
   You can not use the actual principal axes of rotation of the molecule, because they swap order during vibration.
   The rotational DoS will be with regard to a, b and c.
   Note, that this will yield unusable results, if a, b and c are not close to the actual principal axes.
-- for other molecules, for example water, set `moltypeX_rot_treat = 'f'` and `moltypeX_abc_indicators = 1 2 0 -1`.
+- For other molecules, for example water, set `"rot_treat": "f"` and `"abc_indicators": [1, 2, 0 -1]`.
   Water has atoms O H H. Therefore 1 2 defines vector a between the two hydrogens. 0 -1 defines vector b' along the symmetry axis.
   The rotational DoS will be with regard the actual principal axes of rotation.
   a, b and c will be used to check, that the actual axis derived from the moment of inertia tensor, always point in the same direction.
-- if you do not want any velocity separation use `moltypeX_rot_treat = 'u'` and the unseparated DoS will be output to DoS_vib.
+  This will be the correct choice for most molecules, especially larger ones.
+- If you do not want any velocity separation use `"rot_treat": "u"` and the unseparated DoS will be output to `vib_{x,y,z}`.
+
+### Cross spectrum
+
+The `name` of a `cross spectrum` can be up to 79 characters long and can help identify the specified cross correlation in the output file.
+The `type` of a `cross spectrum` can be "i" for inside or "e" for external.
+Option "i" will result in a cross correlation of degrees of freedom within molecules and an average over molecules.
+Option "e" will correlate all specified degrees of freedom from all matching molecules (can take a long time).
+
+The variable `dof_type` can be one of:
+
+- "t" for translational xyz-component of the molecule. Possible indices for dof_list: 0, 1, 2.
+- "r" for rotational xyz-component of each atom in the molecule. Possible indices for dof_list: 0, 1, ..., 3*mol_natoms.
+- "v" for vibrational xyz-component of each atom in the molecule. Possible indices for dof_list: 0, 1, ..., 3*mol_natoms.
+- "o" for rotational abc-component of the molecule. Possible indices for dof_list: 0, 1, 2.
+
+Here, mol_natoms indicates the number of atoms in one molecule of the chosen moleculetype.
+
+## Output
+
+A example dos.json corresponding to the example above with long lists of numbers shortened to [...].
+```
+{
+    "frequencies":	[...],
+    "moltypes":	[{
+        "dos":	[{
+            "name":	"trn_x",
+            "data":	[[...], [...], [...], [...], [...]]
+        }, {
+            "name":	"trn_y",
+            "data":	[[...], [...], [...], [...], [...]]
+        }, {
+            "name":	"trn_z",
+            "data":	[[...], [...], [...], [...], [...]]
+        }, {
+            "name":	"rot_x",
+            "data":	[[...], [...], [...], [...], [...]]
+        }, {
+            "name":	"rot_y",
+            "data":	[[...], [...], [...], [...], [...]]
+        }, {
+            "name":	"rot_z",
+            "data":	[[...], [...], [...], [...], [...]]
+        }, {
+            "name":	"vib_x",
+            "data":	[[...], [...], [...], [...], [...]]
+        }, {
+            "name":	"vib_y",
+            "data":	[[...], [...], [...], [...], [...]]
+        }, {
+            "name":	"vib_z",
+            "data":	[[...], [...], [...], [...], [...]]
+        }, {
+            "name":	"rot_a",
+            "data":	[[...], [...], [...], [...], [...]]
+        }, {
+            "name":	"rot_b",
+            "data":	[[...], [...], [...], [...], [...]]
+        }, {
+            "name":	"rot_c",
+            "data":	[[...], [...], [...], [...], [...]]
+        }],
+        "moments_of_inertia":	[[0.0071233315393328667, 0.013312174007296562, 0.020435504615306854], [0.0071259848773479462, 0.013308963738381863, 0.02043495886027813], [0.0071264943107962608, 0.013315362855792046, 0.020441846922039986], [0.0071183349937200546, 0.013314731419086456, 0.020433064550161362], [0.007123015820980072, 0.013312199153006077, 0.020435240119695663]]
+    }, {
+        "dos":	[{
+            "name":	"trn_x",
+            "data":	[[...], [...], [...], [...], [...]]
+        }, {
+            "name":	"trn_y",
+            "data":	[[...], [...], [...], [...], [...]]
+        }, {
+            "name":	"trn_z",
+            "data":	[[...], [...], [...], [...], [...]]
+        }, {
+            "name":	"rot_x",
+            "data":	[[...], [...], [...], [...], [...]]
+        }, {
+            "name":	"rot_y",
+            "data":	[[...], [...], [...], [...], [...]]
+        }, {
+            "name":	"rot_z",
+            "data":	[[...], [...], [...], [...], [...]]
+        }, {
+            "name":	"vib_x",
+            "data":	[[...], [...], [...], [...], [...]]
+        }, {
+            "name":	"vib_y",
+            "data":	[[...], [...], [...], [...], [...]]
+        }, {
+            "name":	"vib_z",
+            "data":	[[...], [...], [...], [...], [...]]
+        }, {
+            "name":	"rot_a",
+            "data":	[[...], [...], [...], [...], [...]]
+        }, {
+            "name":	"rot_b",
+            "data":	[[...], [...], [...], [...], [...]]
+        }, {
+            "name":	"rot_c",
+            "data":	[[...], [...], [...], [...], [...]]
+        }],
+        "moments_of_inertia":	[[0.00785850640386343, 0.16801847517490387, 0.17587696015834808], [0.0078581739217042923, 0.16808962821960449, 0.17594780027866364], [0.0078575713559985161, 0.16799667477607727, 0.17585422098636627], [0.00785425677895546, 0.16799832880496979, 0.17585258185863495], [0.007849549874663353, 0.16799871623516083, 0.17584823071956635]]
+    }],
+    "cross_spectra":	[{
+        "name":	"water_trn water_vib",
+        "data":	[[...], [...], [...], [...], [...]]
+    }]
+}
+```
+
+The first dimension of each `data` and `moments_of_inertia` list is determined by `nsamples`.
+The second dimension of each `data` list is the number of frequencies, which is `floor(nblocksteps / 2) + 1`.
+
+A verbal (and therefore not exact) description of the DoS components:
+
+- `trn_x` is the power spectrum of the x component of the velocities of the molecules center of mass translational motion.
+- `rot_x` is the power spectrum of the x component of the velocities of the atoms due to molecular rotational motion.
+- `vib_x` is the power spectrum of the x component of the velocities of the atoms due to molecular vibrational motion.
+- `rot_a` is the power spectrum of the angular velocity around principal axis 'a' of each molecule.
 
 ## Limitations
 
-- PBC recombination does not work for non orthorhombic boxes. However you can make all molecules whole in the trajectory before using dos-calc and then use the --no-pbc option.
+- PBC recombination does not work for non-orthorhombic boxes.
+  However you can make all molecules whole in the trajectory (`gmx trjconv -pbc mol`) before using `dos-calc` and then use the --no-pbc option.
+  Whole molecules are alowed to jump between frames so a full unwrapping of the trajectory is not necessary.
 - The program uses single precision.
 - Linear molecules are assumed to be diatomic.
-- Not tested on periodic molecules.
+- Not tested and likely to fail on periodic molecules.
 
 ## Scripts
 

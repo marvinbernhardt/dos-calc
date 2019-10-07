@@ -1,15 +1,15 @@
 cmake_minimum_required(VERSION 3.8)
 
-project(dos-calc VERSION 0.2 LANGUAGES C CXX)
+project(dos-calc VERSION 0.3 LANGUAGES C CXX)
 
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
 option(USE_RPATH "Link to libraries in RPATH" ON)
-option(DEBUG "Turn on extensive debugging output" OFF)
+option(DEBUG "Turn on extensive debugging output at runtime" OFF)
 
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
 find_package(OpenMP REQUIRED)
 find_package(CBLAS REQUIRED)  # self defined
@@ -21,7 +21,6 @@ find_package(cJSON REQUIRED)
 add_executable(dos-calc src/dos-calc.c)
 target_sources(dos-calc PRIVATE src/)
 target_include_directories(dos-calc PRIVATE include/)
-target_compile_features(dos-calc PUBLIC cxx_std_11)
 target_compile_options(dos-calc PUBLIC "$<$<CONFIG:RELEASE>:-O3>")
 target_compile_options(dos-calc PRIVATE $<$<C_COMPILER_ID:GNU>:-Wall -Wextra -Wpedantic>)
 if(USE_RPATH)

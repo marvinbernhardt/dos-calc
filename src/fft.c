@@ -15,7 +15,7 @@
 
 
 size_t gen_dof_fourier_index(
-        unsigned long nfftsteps,
+        unsigned long nfrequencies,
         size_t *moltype_firstmol,
         size_t *moltype_firstatom,
         size_t *moltype_natomspermol,
@@ -45,14 +45,14 @@ size_t gen_dof_fourier_index(
     // add specified dof
     dof_index += dof;
 
-    size_t dof_fourier_index = nfftsteps * (6*moltype_firstmol[moltype] + 6*moltype_firstatom[moltype] + 6*i0 + 6*mol_natoms*i0 + dof_index);
+    size_t dof_fourier_index = nfrequencies * (6*moltype_firstmol[moltype] + 6*moltype_firstatom[moltype] + 6*i0 + 6*mol_natoms*i0 + dof_index);
     return dof_fourier_index;
 }
 
 
 void dos_calculation (size_t nmoltypes,
         unsigned long nblocksteps,
-        unsigned long nfftsteps,
+        unsigned long nfrequencies,
         size_t *moltype_firstmol,
         size_t *moltype_firstatom,
         size_t *moltype_nmols,
@@ -83,12 +83,12 @@ void dos_calculation (size_t nmoltypes,
     // array that will hold all FT of the time series
     // this is for cross spectra calculation later
     // order of dof is: trn rot_xyz vib rot_omega
-    fftwf_complex *dof_fourier = calloc(ndof*nfftsteps, sizeof(fftwf_complex));
+    fftwf_complex *dof_fourier = calloc(ndof*nfrequencies, sizeof(fftwf_complex));
 
     // stuff for fftw
     float *fft_in = calloc(nblocksteps, sizeof(float));
-    fftwf_complex *fft_out = fftwf_malloc(sizeof(fftwf_complex) * nfftsteps);
-    float *fft_out_squared = calloc(nfftsteps, sizeof(float));
+    fftwf_complex *fft_out = fftwf_malloc(sizeof(fftwf_complex) * nfrequencies);
+    float *fft_out_squared = calloc(nfrequencies, sizeof(float));
     DPRINT("creating plan\n");
     fftwf_plan plan = fftwf_plan_dft_r2c_1d(nblocksteps, fft_in, fft_out, FFTW_MEASURE);
 
@@ -152,21 +152,21 @@ void dos_calculation (size_t nmoltypes,
                 fftwf_execute(plan);
 
                 // save all fourier transforms
-                size_t dof_index = nfftsteps * (6*moltype_firstmol[h] + 6*moltype_firstatom[h] + 6*i0 + 6*mol_natoms*i0 + dof);
+                size_t dof_index = nfrequencies * (6*moltype_firstmol[h] + 6*moltype_firstatom[h] + 6*i0 + 6*mol_natoms*i0 + dof);
                 memcpy(&dof_fourier[dof_index],
                        fft_out,
-                       nfftsteps * sizeof(fftwf_complex));
+                       nfrequencies * sizeof(fftwf_complex));
 
                 // square and add to dos
-                for (unsigned long t=0; t<nfftsteps; t++)
+                for (unsigned long t=0; t<nfrequencies; t++)
                 {
                     fft_out_squared[t] = cabs(fft_out[t] * fft_out[t]);
                 }
                 size_t dos_index =
-                    h*ndos*nsamples*nfftsteps
-                    +  dos*nsamples*nfftsteps
-                    +        sample*nfftsteps;
-                cblas_saxpy(nfftsteps, 1.0, fft_out_squared, 1, &moltypes_dos_samples[dos_index], 1);
+                    h*ndos*nsamples*nfrequencies
+                    +  dos*nsamples*nfrequencies
+                    +        sample*nfrequencies;
+                cblas_saxpy(nfrequencies, 1.0, fft_out_squared, 1, &moltypes_dos_samples[dos_index], 1);
             }
         }
         DPRINT("moltype done\n");
@@ -174,13 +174,13 @@ void dos_calculation (size_t nmoltypes,
     DPRINT("all moltypes done\n");
 
 
-    //fftwf_complex *dof_fourier = calloc(ndof*nfftsteps, sizeof(fftwf_complex));
+    //fftwf_complex *dof_fourier = calloc(ndof*nfrequencies, sizeof(fftwf_complex));
     for (size_t d=0; d<ndof; d++)
     {
         DPRINT("dof_fourier of dof %zu:\n", d);
-        for (size_t t=0; t<nfftsteps; t++)
+        for (size_t t=0; t<nfrequencies; t++)
         {
-            DPRINT("%f + i%f, ", creal(dof_fourier[d*nfftsteps+t]), cimag(dof_fourier[d*nfftsteps+t]));
+            DPRINT("%f + i%f, ", creal(dof_fourier[d*nfrequencies+t]), cimag(dof_fourier[d*nfrequencies+t]));
         }
         DPRINT("\n");
     }
@@ -193,7 +193,7 @@ void dos_calculation (size_t nmoltypes,
                 cross_spectra_def[d].name);
         char cross_spectrum_type = cross_spectra_def[d].type;
         size_t ncross_contribs = 0;
-        float *cross_spectrum = calloc(nfftsteps, sizeof(float));
+        float *cross_spectrum = calloc(nfrequencies, sizeof(float));
         for (size_t p=0; p<cross_spectra_def[d].ndof_pair_defs; p++)
         {
             // convenience
@@ -224,7 +224,7 @@ void dos_calculation (size_t nmoltypes,
                             {
                                 ncross_contribs++;
                                 // find index in 
-                                size_t dof_fourier_indexA = gen_dof_fourier_index(nfftsteps,
+                                size_t dof_fourier_indexA = gen_dof_fourier_index(nfrequencies,
                                         moltype_firstmol,
                                         moltype_firstatom,
                                         moltype_natomspermol,
@@ -232,7 +232,7 @@ void dos_calculation (size_t nmoltypes,
                                         typeA,
                                         dofA,
                                         iA);
-                                size_t dof_fourier_indexB = gen_dof_fourier_index(nfftsteps,
+                                size_t dof_fourier_indexB = gen_dof_fourier_index(nfrequencies,
                                         moltype_firstmol,
                                         moltype_firstatom,
                                         moltype_natomspermol,
@@ -241,12 +241,12 @@ void dos_calculation (size_t nmoltypes,
                                         dofB,
                                         iB);
 
-                                for (unsigned long t=0; t<nfftsteps; t++)
+                                for (unsigned long t=0; t<nfrequencies; t++)
                                 {
                                     fft_out_squared[t] = cabs(dof_fourier[dof_fourier_indexA+t] * dof_fourier[dof_fourier_indexB+t]);
                                 }
 
-                                cblas_saxpy(nfftsteps, 1.0, fft_out_squared, 1, cross_spectrum, 1);
+                                cblas_saxpy(nfrequencies, 1.0, fft_out_squared, 1, cross_spectrum, 1);
                             }
                         }
                     }
@@ -257,7 +257,7 @@ void dos_calculation (size_t nmoltypes,
                         {
                             ncross_contribs++;
                             // find index in 
-                            size_t dof_fourier_indexA = gen_dof_fourier_index(nfftsteps,
+                            size_t dof_fourier_indexA = gen_dof_fourier_index(nfrequencies,
                                     moltype_firstmol,
                                     moltype_firstatom,
                                     moltype_natomspermol,
@@ -265,7 +265,7 @@ void dos_calculation (size_t nmoltypes,
                                     typeA,
                                     dofA,
                                     iA);
-                            size_t dof_fourier_indexB = gen_dof_fourier_index(nfftsteps,
+                            size_t dof_fourier_indexB = gen_dof_fourier_index(nfrequencies,
                                     moltype_firstmol,
                                     moltype_firstatom,
                                     moltype_natomspermol,
@@ -274,12 +274,12 @@ void dos_calculation (size_t nmoltypes,
                                     dofB,
                                     iA);
 
-                            for (unsigned long t=0; t<nfftsteps; t++)
+                            for (unsigned long t=0; t<nfrequencies; t++)
                             {
                                 fft_out_squared[t] = cabs(dof_fourier[dof_fourier_indexA+t] * dof_fourier[dof_fourier_indexB+t]);
                             }
 
-                            cblas_saxpy(nfftsteps, 1.0, fft_out_squared, 1, cross_spectrum, 1);
+                            cblas_saxpy(nfrequencies, 1.0, fft_out_squared, 1, cross_spectrum, 1);
                         }
                     }
                 }
@@ -288,10 +288,10 @@ void dos_calculation (size_t nmoltypes,
 
         // scale by 1/ncross_contribs and add to array
         size_t cross_index =
-            d * nsamples * nfftsteps
-            +     sample * nfftsteps;
+            d * nsamples * nfrequencies
+            +     sample * nfrequencies;
         DPRINT("ncross_contribs: %zu\n", ncross_contribs);
-        cblas_saxpy(nfftsteps, 1.0/(float)ncross_contribs, cross_spectrum, 1, &cross_spectra_samples[cross_index], 1);
+        cblas_saxpy(nfrequencies, 1.0/(float)ncross_contribs, cross_spectrum, 1, &cross_spectra_samples[cross_index], 1);
         free(cross_spectrum);
     }
 

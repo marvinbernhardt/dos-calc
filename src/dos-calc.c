@@ -148,7 +148,7 @@ int main( int argc, char *argv[] )
     // convenience variables
     size_t natoms = 0;
     size_t nmols = 0;
-    unsigned long nfftsteps = nblocksteps / 2 + 1;
+    unsigned long nfrequencies = nblocksteps / 2 + 1;
     size_t *moltypes_firstmol = calloc(nmoltypes, sizeof(size_t));
     size_t *moltypes_firstatom = calloc(nmoltypes, sizeof(size_t));
     for (size_t h=0; h<nmoltypes; h++)
@@ -253,8 +253,8 @@ int main( int argc, char *argv[] )
       "rot_c"
     };
     // order is: trn_xyz, rot_xyz, vib_xyz, rot_omega_abc
-    float* moltypes_dos_samples = calloc(nmoltypes*ndos*nsamples*nfftsteps, sizeof(float));
-    float* cross_spectra_samples = calloc(ncross_spectra*nsamples*nfftsteps, sizeof(float));
+    float* moltypes_dos_samples = calloc(nmoltypes*ndos*nsamples*nfrequencies, sizeof(float));
+    float* cross_spectra_samples = calloc(ncross_spectra*nsamples*nfrequencies, sizeof(float));
     // moments of inertia
     float* moltypes_samples_moments_of_inertia = calloc(nmoltypes*nsamples*3, sizeof(float));
 
@@ -302,7 +302,7 @@ int main( int argc, char *argv[] )
             verbPrintf(verbosity, "start DoS calculation (FFT)\n");
             dos_calculation(nmoltypes,
                     nblocksteps,
-                    nfftsteps,
+                    nfrequencies,
                     moltypes_firstmol,
                     moltypes_firstatom,
                     moltypes_nmols,
@@ -360,20 +360,20 @@ int main( int argc, char *argv[] )
         float norm_factor = 1.0 / (float)nblocks;
         norm_factor *= 2.0 * framelength / (float)nblocksteps / (float)moltypes_nmols[h];
         DPRINT("norm_factor for moltype %zu: %f\n", h, norm_factor);
-        size_t dos_index = h*ndos*nsamples*nfftsteps;
-        cblas_sscal(ndos*nsamples*nfftsteps, norm_factor, &moltypes_dos_samples[dos_index], 1);
+        size_t dos_index = h*ndos*nsamples*nfrequencies;
+        cblas_sscal(ndos*nsamples*nfrequencies, norm_factor, &moltypes_dos_samples[dos_index], 1);
     }
 
     // normalize cross spectra
     float norm_factor = 1.0 / (float)nblocks;
     norm_factor *= 2.0 * framelength / (float)nblocksteps;
-    cblas_sscal(ncross_spectra*nsamples*nfftsteps, norm_factor, &cross_spectra_samples[0], 1);
+    cblas_sscal(ncross_spectra*nsamples*nfrequencies, norm_factor, &cross_spectra_samples[0], 1);
 
     // write dos.json
     result = write_dos(arguments.outfile,
         nsamples,
         nblocksteps,
-        nfftsteps,
+        nfrequencies,
         framelength,
         ndos,
         ncross_spectra,
