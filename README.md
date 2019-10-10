@@ -47,8 +47,8 @@ The output is be written to the JSON file `dos.json` or whatever filename specif
 A example params.json of a mixture of three-point model water with united atom methanol.
 ```
 {
-    "nsamples": 5,
-    "nblocks": 1,
+    "nsamples": 2,
+    "nblocks": 3,
     "nblocksteps": 1000,
     "moltypes": [
         {
@@ -148,102 +148,55 @@ Here, mol_natoms indicates the number of atoms in one molecule of the chosen mol
 A example dos.json corresponding to the example above with long lists of numbers shortened to [...].
 ```
 {
-    "frequencies":	[...],
-    "moltypes":	[{
-        "dos":	[{
-            "name":	"trn_x",
-            "data":	[[...], [...], [...], [...], [...]]
+    "frequencies": [...],
+    "moltypes": [{
+            "spectra": {
+                "trn_x": [[...], [...]],
+                "trn_y": [[...], [...]],
+                "trn_z": [[...], [...]],
+                "rot_x": [[...], [...]],
+                "rot_y": [[...], [...]],
+                "rot_z": [[...], [...]],
+                "vib_x": [[...], [...]],
+                "vib_y": [[...], [...]],
+                "vib_z": [[...], [...]],
+                "rot_a": [[...], [...]],
+                "rot_b": [[...], [...]],
+                "rot_c": [[...], [...]]
+            },
+            "moments_of_inertia": [[...], [...]]
         }, {
-            "name":	"trn_y",
-            "data":	[[...], [...], [...], [...], [...]]
-        }, {
-            "name":	"trn_z",
-            "data":	[[...], [...], [...], [...], [...]]
-        }, {
-            "name":	"rot_x",
-            "data":	[[...], [...], [...], [...], [...]]
-        }, {
-            "name":	"rot_y",
-            "data":	[[...], [...], [...], [...], [...]]
-        }, {
-            "name":	"rot_z",
-            "data":	[[...], [...], [...], [...], [...]]
-        }, {
-            "name":	"vib_x",
-            "data":	[[...], [...], [...], [...], [...]]
-        }, {
-            "name":	"vib_y",
-            "data":	[[...], [...], [...], [...], [...]]
-        }, {
-            "name":	"vib_z",
-            "data":	[[...], [...], [...], [...], [...]]
-        }, {
-            "name":	"rot_a",
-            "data":	[[...], [...], [...], [...], [...]]
-        }, {
-            "name":	"rot_b",
-            "data":	[[...], [...], [...], [...], [...]]
-        }, {
-            "name":	"rot_c",
-            "data":	[[...], [...], [...], [...], [...]]
+            "spectra": {
+                "trn_x": [[...], [...]],
+                "trn_y": [[...], [...]],
+                "trn_z": [[...], [...]],
+                "rot_x": [[...], [...]],
+                "rot_y": [[...], [...]],
+                "rot_z": [[...], [...]],
+                "vib_x": [[...], [...]],
+                "vib_y": [[...], [...]],
+                "vib_z": [[...], [...]],
+                "rot_a": [[...], [...]],
+                "rot_b": [[...], [...]],
+                "rot_c": [[...], [...]]
+            },
+            "moments_of_inertia": [[...], [...]]
         }],
-        "moments_of_inertia":	[[0.0071233315393328667, 0.013312174007296562, 0.020435504615306854], [0.0071259848773479462, 0.013308963738381863, 0.02043495886027813], [0.0071264943107962608, 0.013315362855792046, 0.020441846922039986], [0.0071183349937200546, 0.013314731419086456, 0.020433064550161362], [0.007123015820980072, 0.013312199153006077, 0.020435240119695663]]
-    }, {
-        "dos":	[{
-            "name":	"trn_x",
-            "data":	[[...], [...], [...], [...], [...]]
-        }, {
-            "name":	"trn_y",
-            "data":	[[...], [...], [...], [...], [...]]
-        }, {
-            "name":	"trn_z",
-            "data":	[[...], [...], [...], [...], [...]]
-        }, {
-            "name":	"rot_x",
-            "data":	[[...], [...], [...], [...], [...]]
-        }, {
-            "name":	"rot_y",
-            "data":	[[...], [...], [...], [...], [...]]
-        }, {
-            "name":	"rot_z",
-            "data":	[[...], [...], [...], [...], [...]]
-        }, {
-            "name":	"vib_x",
-            "data":	[[...], [...], [...], [...], [...]]
-        }, {
-            "name":	"vib_y",
-            "data":	[[...], [...], [...], [...], [...]]
-        }, {
-            "name":	"vib_z",
-            "data":	[[...], [...], [...], [...], [...]]
-        }, {
-            "name":	"rot_a",
-            "data":	[[...], [...], [...], [...], [...]]
-        }, {
-            "name":	"rot_b",
-            "data":	[[...], [...], [...], [...], [...]]
-        }, {
-            "name":	"rot_c",
-            "data":	[[...], [...], [...], [...], [...]]
-        }],
-        "moments_of_inertia":	[[0.00785850640386343, 0.16801847517490387, 0.17587696015834808], [0.0078581739217042923, 0.16808962821960449, 0.17594780027866364], [0.0078575713559985161, 0.16799667477607727, 0.17585422098636627], [0.00785425677895546, 0.16799832880496979, 0.17585258185863495], [0.007849549874663353, 0.16799871623516083, 0.17584823071956635]]
-    }],
-    "cross_spectra":	[{
-        "name":	"water_trn water_vib",
-        "data":	[[...], [...], [...], [...], [...]]
-    }]
+    "cross_spectra": {
+        "water_trn water_vib": [[...], [...]]
+    }
 }
 ```
 
-The first dimension of each `data` and `moments_of_inertia` list is determined by `nsamples`.
-The second dimension of each `data` list is the number of frequencies, which is `floor(nblocksteps / 2) + 1`.
+The first dimension of each spectrum and `moments_of_inertia` list is determined by `nsamples`.
+The second dimension of each spectrum list is the number of frequencies, which is `floor(nblocksteps / 2) + 1`.
 
 A verbal (and therefore not exact) description of the DoS components:
 
 - `trn_x` is the power spectrum of the x component of the velocities of the molecules center of mass translational motion.
 - `rot_x` is the power spectrum of the x component of the velocities of the atoms due to molecular rotational motion.
 - `vib_x` is the power spectrum of the x component of the velocities of the atoms due to molecular vibrational motion.
-- `rot_a` is the power spectrum of the angular velocity around principal axis 'a' of each molecule.
+- `rot_a` is the power spectrum of the angular velocity times sqrt(I_a) around principal axis 'a' of each molecule.
 
 ## Limitations
 

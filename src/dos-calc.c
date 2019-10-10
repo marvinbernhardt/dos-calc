@@ -248,9 +248,9 @@ int main( int argc, char *argv[] )
       "vib_x",
       "vib_y",
       "vib_z",
-      "rot_a",
-      "rot_b",
-      "rot_c"
+      "roto_a",
+      "roto_b",
+      "roto_c"
     };
     // order is: trn_xyz, rot_xyz, vib_xyz, rot_omega_abc
     float* moltypes_dos_samples = calloc(nmoltypes*ndos*nsamples*nfrequencies, sizeof(float));

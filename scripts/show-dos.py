@@ -1,161 +1,145 @@
 #!/usr/bin/env python3
 
 import argparse
+import json
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
-import glob
-from pathlib import Path
 import sys
 
 if sys.version_info < (3, 6):
     print("This script requires at least Python version 3.6")
     sys.exit(1)
 
-parser = argparse.ArgumentParser(description='Plot DoS files.')
-parser.add_argument('-c', '--components', help='show components DoS',
-                    dest='show_components', action='store_true')
-parser.add_argument('-x', '--cross', help='show cross DoS',
-                    dest='show_cross', action='store_true')
-parser.add_argument('-s', '--samples', help='show samples individually',
-                    dest='show_samples', action='store_true')
-parser.add_argument('-a', '--rotalt', help='show alternative DoS_rot',
-                    dest='show_rotalt', action='store_true')
+    
+def create_nocomp_spectra(system):
+    # definitions
+    dos_nocomp_dict = {
+        'trn': ['trn_x', 'trn_y', 'trn_z'],
+        'rot': ['rot_x', 'rot_y', 'rot_z'],
+        'vib': ['vib_x', 'vib_y', 'vib_z'],
+        'roto': ['roto_a', 'roto_b', 'roto_c']
+    }
 
-args = parser.parse_args()
-
-freq_file = Path(f"frequencies.txt")
-if freq_file.is_file():
-    frequencies = np.array(pd.read_csv(f"frequencies.txt", sep=' ', header=None)).flat
-    print("frequencies found")
-else:
-    frequencies = False
-    print("no frequencies found")
-
-doses = [
-    {'name': 'dos_trn', 'tags': ['standard']},
-    {'name': 'dos_rot', 'tags': ['standard', 'notrotalt']},
-    {'name': 'dos_rotalt', 'tags': ['rotalt']},
-    {'name': 'dos_vib', 'tags': ['standard']},
-    {'name': 'dos_trn_x', 'tags': ['comp']},
-    {'name': 'dos_trn_y', 'tags': ['comp']},
-    {'name': 'dos_trn_z', 'tags': ['comp']},
-    {'name': 'dos_rot_a', 'tags': ['comp', 'notrotalt']},
-    {'name': 'dos_rot_b', 'tags': ['comp', 'notrotalt']},
-    {'name': 'dos_rot_c', 'tags': ['comp', 'notrotalt']},
-    {'name': 'dos_rotalt_x', 'tags': ['rotalt', 'comp']},
-    {'name': 'dos_rotalt_y', 'tags': ['rotalt', 'comp']},
-    {'name': 'dos_rotalt_z', 'tags': ['rotalt', 'comp']},
-    {'name': 'dos_vib_x', 'tags': ['comp']},
-    {'name': 'dos_vib_y', 'tags': ['comp']},
-    {'name': 'dos_vib_z', 'tags': ['comp']},
-    {'name': 'dos_x_trn_rot', 'tags': ['cross']},
-    {'name': 'dos_x_trn_vib', 'tags': ['cross']},
-    {'name': 'dos_x_rot_vib', 'tags': ['cross']},
-]
-
-samples = [int(dos_trn_file.split('_')[0].split('e')[1]) for dos_trn_file in glob.glob('sample*_dos_trn.txt')]
-
-# filter which doses to show
-tag_bool_dict = {
-    'standard': True,
-    'comp': args.show_components,
-    'cross': args.show_cross,
-    'rotalt': args.show_rotalt,
-    'notrotalt': not args.show_rotalt}
-
-doses_to_show = []
-for dos in doses:
-    if all((tag_bool_dict[tag] for tag in dos['tags'])):
-        doses_to_show.append(dos)
-
-if len(samples) == 0:
-    raise Exception("ERROR: No dos found to show!")
-elif len(samples) == 1 or args.show_samples:
-    for sample in samples:
-        # load data from files
-        for dos in doses_to_show:
-            dos['data'] = np.array(pd.read_csv(f"sample{sample}_{dos['name']}.txt", sep=' ', header=None))
-
-        # show dos integrals
-        for moltype in range(len(doses_to_show[0]['data'])):
-            if frequencies:
-                print(f"sample {sample}, moltype {moltype}")
-            else:
-                factor = 1 / (np.trapz(doses_to_show[0]['data'][moltype]) / 3)
-                print(f"sample {sample}, moltype {moltype}, normalized to dos_trn/3")
-
-            for dos in doses_to_show:
-                if frequencies:
-                    print(f"integral {dos['name']}:", np.trapz(dos['data'][moltype], frequencies))
+    # sum no-component spectra from component spectra
+    for h, moltype in enumerate(system['moltypes']):
+        # loop dos_types to build
+        for dos_type_nocomp, dos_types_comp in dos_nocomp_dict.items():
+            dos_nocomp_data = None
+            # loop dos_types to sum
+            for dos_type_comp in dos_types_comp:
+                dos_comp_data = np.array(moltype['spectra'][dos_type_comp])
+                if dos_nocomp_data is None:
+                    dos_nocomp_data = dos_comp_data.copy()
                 else:
-                    print(f"integral {dos['name']}:", np.trapz(dos['data'][moltype]) * factor)
+                    dos_nocomp_data += dos_comp_data
+            moltype['spectra'][dos_type_nocomp] = dos_nocomp_data
+        
 
-        # show dos plots
-        fig, ax = plt.subplots()
-        ax.set_title(f"sample {sample}")
-        for moltype in range(len(doses_to_show[0]['data'])):
-            for dos in doses_to_show:
-                if frequencies:
-                    ax.plot(frequencies, dos['data'][moltype], label=f"{moltype} {dos['name']}")
-                else:
-                    ax.plot(dos['data'][moltype], label=f"{moltype} {dos['name']}")
+def _plot_spectra(system, show_components, show_cross, show_samples, show_roto, temperature, sample=None):
 
-        if frequencies:
-            plt.xlabel("freqency in 1/ps")
-        fig.legend()
+    K_GRO = 0.00831445986144858
+    # frequencies
+    freq = system['frequencies']
 
-    plt.show()
+    # sizes
+    nmoltypes = len(system['moltypes'])
 
-else:
-    # load data from files
-    for dos in doses_to_show:
+    linestyles = ['--', '-.', ':',
+                  (0, (3, 2, 1, 2, 1, 2))
+                 ]
 
-        dos['data'] = []
-        for sample in samples:
-            dos['data'].append(np.array(pd.read_csv(f"sample{sample}_{dos['name']}.txt", sep=' ', header=None)))
-
-        dos['mean'] = np.array(dos['data']).mean(axis=0)
-        dos['std'] = np.array(dos['data']).std(axis=0)
-
-    # show dos integrals
-    for moltype in range(len(doses_to_show[0]['data'][0])):
-        if frequencies:
-            print(f"moltype {moltype}")
-        else:
-            factor = 1 / (np.trapz(doses_to_show[0]['mean'][moltype]) / 3)
-            print(f"moltype {moltype}")
-            print(f"sample {sample}, integrals normalized to dos_trn/3")
-
-        for dos in doses_to_show:
-            if frequencies:
-                print(f"integral {dos['name']}:", np.trapz(dos['mean'][moltype], frequencies))
+    fig, ax = plt.subplots(figsize=(5, 3))
+    for h, moltype in enumerate(system['moltypes']):
+        # filter spectra for comp/nocomp and roto
+        filtered_spectra = {dos_name:dos for (dos_name, dos) in moltype['spectra'].items()
+                            if not (not show_components and '_' in dos_name)
+                            if not (show_components and not '_' in dos_name)
+                            if not (not show_roto and dos_name.startswith('roto'))}
+        nspectra = len(filtered_spectra)
+        # loop dos_types to plot
+        for d, (dos_name, dos) in enumerate(filtered_spectra.items()):
+            if show_samples:
+                dos = np.array(dos)[([sample], slice(None))]
             else:
-                print(f"integral {dos['name']}:", np.trapz(dos['mean'][moltype]) * factor)
-
-    # show dos plots
-    fig, ax = plt.subplots()
-    for moltype in range(len(doses_to_show[0]['data'][0])):
-        for dos in doses_to_show:
-            if frequencies:
-                line, = ax.plot(frequencies, dos['mean'][moltype], label=f"{moltype} {dos['name']}")
-                ax.fill_between(frequencies,
-                                dos['mean'][moltype]-dos['std'][moltype],
-                                dos['mean'][moltype]+dos['std'][moltype],
-                                facecolor=line.get_color(), alpha=0.3)
+                dos = np.array(dos)
+            # show integral
+            if temperature is None:
+                print(f"integral {dos_name}: {np.trapz(np.mean(dos, axis=0), freq):.4f} kJ/mol")
             else:
-                arbitrary_freqs = np.arange(0, len(dos['mean'][moltype]))
-                line, = ax.plot(dos['mean'][moltype], label=f"{moltype} {dos['name']}")
-                ax.fill_between(arbitrary_freqs,
-                                dos['mean'][moltype]-dos['std'][moltype],
-                                dos['mean'][moltype]+dos['std'][moltype],
+                print(f"integral {dos_name}: {np.trapz(np.mean(dos, axis=0), freq) / K_GRO / temperature:.4f}")
+            # plot
+            if show_components:
+                color = plt.get_cmap('brg')(h/nmoltypes+d/nmoltypes/nspectra)
+                linestyle=linestyles[d%3]
+            else:
+                color = plt.get_cmap('Dark2')(h/8)
+                linestyle=linestyles[d%len(linestyles)]
+            line, = ax.plot(freq, np.mean(dos, axis=0),
+                            linestyle=linestyle,
+                            color=color,
+                            label=f"{h} {dos_name}")
+            if not show_samples:
+                ax.fill_between(freq,
+                                np.min(dos, axis=0),
+                                np.max(dos, axis=0),
                                 facecolor=line.get_color(), alpha=0.3)
 
-    if frequencies:
-        plt.xlabel("freqency in 1/ps")
-        plt.ylabel("DoS in ps")
+    if show_cross:
+        for d, (cs_name, cs) in enumerate(system['cross_spectra'].items()):
+            if show_samples:
+                cs = np.array(cs)[([sample], slice(None))]
+            else:
+                cs = np.array(cs)
+            # plot
+            if temperature is None:
+                print(f"integral {cs_name}: {np.trapz(np.mean(cs, axis=0), freq):.4f} kJ/mol")
+            else:
+                print(f"integral {cs_name}: {np.trapz(np.mean(cs, axis=0), freq) / K_GRO / temperature:.4f}")
+            line, = ax.plot(freq, np.mean(cs, axis=0),
+                            color=plt.get_cmap('Set2')(d/8),
+                            label=cs_name)
+            if not show_samples:
+                ax.fill_between(freq,
+                                np.min(cs, axis=0),
+                                np.max(cs, axis=0),
+                                facecolor=line.get_color(), alpha=0.3)
+            
+    ax.set_xlabel("freqency in 1/ps")
+    ax.set_ylabel("DoS in kJ/mol ps")
+    ax.set_xlim(0)
+    ax.set_ylim(0)
+    ax.legend()
+
+
+def plot_spectra(system, show_components, show_cross, show_samples, show_roto, temperature):
+    nsamples = len(system['moltypes'][0]['spectra']['trn_x'])
+
+    if nsamples == 1 or show_samples:
+        for sample in range(nsamples):
+            _plot_spectra(system, show_components, show_cross, show_samples, show_roto, temperature, sample)
+        plt.show()
     else:
-        plt.xlabel("freqency in arbitrary units")
-        plt.ylabel("DoS in arbitrary units")
-    fig.legend()
-    plt.show()
+        _plot_spectra(system, show_components, show_cross, show_samples, show_roto, temperature)
+        plt.show()
+
+if __name__ == "__main__":
+
+    # arguemnt parser
+    parser = argparse.ArgumentParser(description='Plot DoS files.')
+    parser.add_argument('filename', nargs='?', help='file to plot DoS from',
+                        type=argparse.FileType('r'), default='dos.json')
+    parser.add_argument('-c', '--components', help='show components DoS',
+                        dest='show_components', action='store_true')
+    parser.add_argument('-x', '--cross', help='show cross DoS',
+                        dest='show_cross', action='store_true')
+    parser.add_argument('-s', '--samples', help='show samples individually',
+                        dest='show_samples', action='store_true')
+    parser.add_argument('-o', '--roto', help='show DoS_rotomega',
+                        dest='show_roto', action='store_true')
+    parser.add_argument('-t', '--temperature', help='show integral normalized by 1/(kT)',
+                        dest='temperature', type=float, default=None)
+
+    args = parser.parse_args()
+    system = json.load(args.filename)
+    create_nocomp_spectra(system)
+    plot_spectra(system, args.show_components, args.show_cross, args.show_samples, args.show_roto, args.temperature)

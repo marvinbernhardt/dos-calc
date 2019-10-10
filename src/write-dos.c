@@ -51,28 +51,17 @@ int write_dos(const char *dos_file,
         if (moltype == NULL) return 1;
         cJSON_AddItemToArray(moltypes, moltype);
 
-        // dos array
-        cJSON *dos = cJSON_AddArrayToObject(moltype, "dos");
-        if (dos == NULL) return 1;
+        // spectra object
+        cJSON *spectra = cJSON_CreateObject();
+        if (spectra == NULL) return 1;
+        cJSON_AddItemToObject(moltype, "spectra", spectra);
 
-        // moi array
-        cJSON *moi = cJSON_AddArrayToObject(moltype, "moments_of_inertia");
-        if (dos == NULL) return 1;
-
-        // fill dos array
+        // fill spectra
         for (size_t d=0; d<ndos; d++)
         {
-            // this_dos object
-            cJSON *this_dos = cJSON_CreateObject();
+            // this_dos array
+            cJSON *this_dos = cJSON_AddArrayToObject(spectra, dos_names[d]);
             if (this_dos == NULL) return 1;
-            cJSON_AddItemToArray(dos, this_dos);
-
-            // this_dos.name
-            if (cJSON_AddStringToObject(this_dos, "name", dos_names[d]) == NULL) return 1;
-
-            // this_dos.data
-            cJSON *dos_data = cJSON_AddArrayToObject(this_dos, "data");
-            if (dos_data == NULL) return 1;
 
             // fill dos_data array
             for (size_t sample=0; sample<nsamples; sample++)
@@ -80,7 +69,7 @@ int write_dos(const char *dos_file,
                 // dos_data_sample array
                 cJSON *dos_data_sample = cJSON_CreateArray();
                 if (dos_data_sample == NULL) return 1;
-                cJSON_AddItemToArray(dos_data, dos_data_sample);
+                cJSON_AddItemToArray(this_dos, dos_data_sample);
 
                 // fill dos_data_sample array
                 for (unsigned long t=0; t<nfrequencies; t++)
@@ -97,6 +86,10 @@ int write_dos(const char *dos_file,
                 }
             }
         }
+
+        // moi array
+        cJSON *moi = cJSON_AddArrayToObject(moltype, "moments_of_inertia");
+        if (moi == NULL) return 1;
 
         // fill moi array
         for (size_t sample=0; sample<nsamples; sample++)
@@ -122,23 +115,16 @@ int write_dos(const char *dos_file,
     }
 
     // dos_cross array
-    cJSON *dos_cross = cJSON_AddArrayToObject(root, "cross_spectra");
-    if (dos_cross == NULL) return 1;
+    cJSON *cross_spectra = cJSON_CreateObject();
+    cJSON_AddItemToObject(root, "cross_spectra", cross_spectra);
+    if (cross_spectra == NULL) return 1;
 
     // fill dos_cross array
     for (size_t d=0; d<ncross_spectra; d++)
     {
-        // this_dos object
-        cJSON *this_dos = cJSON_CreateObject();
+        // this_dos array
+        cJSON *this_dos = cJSON_AddArrayToObject(cross_spectra, cross_spectra_def[d].name);
         if (this_dos == NULL) return 1;
-        cJSON_AddItemToArray(dos_cross, this_dos);
-
-        // this_dos.name
-        if (cJSON_AddStringToObject(this_dos, "name", cross_spectra_def[d].name) == NULL) return 1;
-
-        // this_dos.data
-        cJSON *dos_data = cJSON_AddArrayToObject(this_dos, "data");
-        if (dos_data == NULL) return 1;
 
         // fill dos_data array
         for (size_t sample=0; sample<nsamples; sample++)
@@ -146,7 +132,7 @@ int write_dos(const char *dos_file,
             // dos_data_sample array
             cJSON *dos_data_sample = cJSON_CreateArray();
             if (dos_data_sample == NULL) return 1;
-            cJSON_AddItemToArray(dos_data, dos_data_sample);
+            cJSON_AddItemToArray(this_dos, dos_data_sample);
 
             // fill dos_data_sample array
             for (unsigned long t=0; t<nfrequencies; t++)
