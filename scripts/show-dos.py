@@ -64,8 +64,10 @@ def _plot_spectra(system, show_components, show_cross, show_samples, show_roto, 
                 dos = np.array(dos)
             # show integral
             if temperature is None:
+                prefactor = 1
                 print(f"integral {dos_name}: {np.trapz(np.mean(dos, axis=0), freq):.4f} kJ/mol")
             else:
+                prefactor = 1 / K_GRO / temperature
                 print(f"integral {dos_name}: {np.trapz(np.mean(dos, axis=0), freq) / K_GRO / temperature:.4f}")
             # plot
             if show_components:
@@ -74,14 +76,14 @@ def _plot_spectra(system, show_components, show_cross, show_samples, show_roto, 
             else:
                 color = plt.get_cmap('Dark2')(h/8)
                 linestyle=linestyles[d%len(linestyles)]
-            line, = ax.plot(freq, np.mean(dos, axis=0),
+            line, = ax.plot(freq, prefactor * np.mean(dos, axis=0),
                             linestyle=linestyle,
                             color=color,
                             label=f"{h} {dos_name}")
             if not show_samples:
                 ax.fill_between(freq,
-                                np.min(dos, axis=0),
-                                np.max(dos, axis=0),
+                                prefactor * np.min(dos, axis=0),
+                                prefactor * np.max(dos, axis=0),
                                 facecolor=line.get_color(), alpha=0.3)
 
     if show_cross:
@@ -92,20 +94,25 @@ def _plot_spectra(system, show_components, show_cross, show_samples, show_roto, 
                 cs = np.array(cs)
             # plot
             if temperature is None:
+                prefactor = 1
                 print(f"integral {cs_name}: {np.trapz(np.mean(cs, axis=0), freq):.4f} kJ/mol")
             else:
+                prefactor = 1 / K_GRO / temperature
                 print(f"integral {cs_name}: {np.trapz(np.mean(cs, axis=0), freq) / K_GRO / temperature:.4f}")
-            line, = ax.plot(freq, np.mean(cs, axis=0),
+            line, = ax.plot(freq, prefactor * np.mean(cs, axis=0),
                             color=plt.get_cmap('Set2')(d/8),
                             label=cs_name)
             if not show_samples:
                 ax.fill_between(freq,
-                                np.min(cs, axis=0),
-                                np.max(cs, axis=0),
+                                prefactor * np.min(cs, axis=0),
+                                prefactor * np.max(cs, axis=0),
                                 facecolor=line.get_color(), alpha=0.3)
             
     ax.set_xlabel("freqency in 1/ps")
-    ax.set_ylabel("DoS in kJ/mol ps")
+    if temperature is None:
+        ax.set_ylabel("DoS in kJ/mol ps")
+    else:
+        ax.set_ylabel("DoS in ps")
     ax.set_xlim(0)
     ax.set_ylim(0)
     ax.legend()
