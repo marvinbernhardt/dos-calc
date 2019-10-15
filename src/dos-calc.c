@@ -5,8 +5,7 @@
 #include <argp.h>
 #include <cblas.h>
 #include <math.h>
-#include "xdrfile.h"
-#include "xdrfile_trr.h"
+#include <chemfiles.h>
 #include "velocity-decomposition.c"
 #include "fft.c"
 #include "verbPrintf.c"
@@ -24,6 +23,7 @@ static struct argp_option options[] = {
     {"verbose",         'v', 0,      0, "Produce verbose output", 0},
     {"no-pbc",          'p', 0,      0, "Do not recombine molecules seperated by periodic boundary conditions", 0},
     {"outfile",         'o', "FILE", 0, "Output json file. Default: dos.json", 0},
+    {"framelength",     'f', "FL",   0, "Lenght of each frame in trajectory (in ps). Taken from trajectory if possible, but can be overwritten with this argument.", 0},
     { 0 }
 };
 
@@ -33,6 +33,7 @@ struct arguments
     bool verbosity;
     bool no_pbc;
     char *outfile;
+    float framelength;
 };
 
 static error_t parse_opt (int key, char *arg, struct argp_state *state)
@@ -51,6 +52,9 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
             break;
         case 'o':
             arguments->outfile = arg;
+            break;
+        case 'f':
+            arguments->framelength = strtof(arg, NULL);
             break;
 
         case ARGP_KEY_ARG:
@@ -87,6 +91,7 @@ int main( int argc, char *argv[] )
     arguments.verbosity = false;
     arguments.no_pbc = false;
     arguments.outfile = "dos.json";
+    arguments.framelength = 0.0;
 
     // parse command line arguments
     argp_parse(&argp, argc, argv, 0, 0, &arguments);
@@ -182,59 +187,80 @@ int main( int argc, char *argv[] )
         }
     }
 
-    // check atom number
-    // warning/error when more or less natoms in traj
+    // open file once for tests
     verbPrintf(verbosity, "starting with file %s\n", trajectory_file);
-    int natoms_traj_int;
-    if (read_trr_natoms(trajectory_file , &natoms_traj_int) != 0) {
-        fprintf(stderr, "ERROR: could not read number of atoms from %s\n", trajectory_file);
+    CHFL_TRAJECTORY* file = chfl_trajectory_open(trajectory_file, 'r');
+    CHFL_FRAME* frame = chfl_frame();
+    int result = chfl_trajectory_read(file, frame);
+
+    if ((file == NULL) || (result != CHFL_SUCCESS)) {
+        fprintf(stderr, "ERROR: Reading trajectory failed.\n");
         return 1;
     }
-    size_t natoms_traj = (size_t) natoms_traj_int;
-    if (natoms > natoms_traj) {
+
+    // check for number of atoms
+    uint64_t natoms_traj = 0;
+    chfl_vector3d* positions = NULL;
+    chfl_frame_positions(frame, &positions, &natoms_traj);
+    if (natoms_traj < natoms) {
         fprintf(stderr, "ERROR: The topology you give has more atoms than first frame of the trajectory\n");
         return 1;
     }
-    else if (natoms < natoms_traj) {
+    else if (natoms_traj > natoms) {
         fprintf(stderr, "WARNING: The topology you give has less atoms than first frame of the trajectory\n");
         fprintf(stderr, "         Some atoms are ignored in every frame\n");
     }
 
-    // open file and check first two frames
-    XDRFILE* traj = xdrfile_open(trajectory_file, "r");
-    if (traj == NULL) {
-        fprintf(stderr, "ERROR: could not open file %s\n", trajectory_file);
+    // check for velocities
+    bool has_velocities = false;
+    chfl_frame_has_velocities(frame, &has_velocities);
+    if (!has_velocities) {
+        fprintf(stderr, "ERROR: No velocities in trajectory.\n");
         return 1;
     }
-    verbPrintf(verbosity, "reading framelength from first two frame's timestamps: ");
+
+    // check for orthorombic box
+    CHFL_CELL* cell = chfl_cell_from_frame(frame);
+    chfl_cellshape shape;
+    chfl_cell_shape(cell, &shape);
+    if((arguments.no_pbc == false) && (shape != CHFL_CELL_ORTHORHOMBIC)) {
+        fprintf(stderr, "ERROR: can not do recombination on non orthorombic box.\n");
+        return 1;
+    }
+    chfl_free(cell);
+
+    // get framelength
     float framelength;
-    int step;
-    float time0, time1;
-    float lambda;
-    matrix box;
-    rvec* r;
-    rvec* v;
-    int has_prop;
-    r = calloc(natoms_traj, sizeof(*r));
-    v = calloc(natoms_traj, sizeof(*v));
-    int result = 0;
-    result = read_trr(traj, natoms_traj, &step, &time0, &lambda, box, r, v, NULL, &has_prop);
-    if (result != 0) {
-        fprintf(stderr, "ERROR: First frame of trajectory broken\n");
-        return 1;
+    if (arguments.framelength == 0.0) {
+        double time0, time1;
+        int result0, result1;
+        // get time0
+        CHFL_PROPERTY *property = chfl_frame_get_property(frame, "time");
+        result0 = chfl_property_get_double(property, &time0);
+        verbPrintf(verbosity, "time of first frame is %f ps\n", time0);
+        // get time1
+        chfl_trajectory_read(file, frame);
+        property = chfl_frame_get_property(frame, "time");
+        result1 = chfl_property_get_double(property, &time1);
+        verbPrintf(verbosity, "time of second frame is %f ps\n", time1);
+        framelength = (float) (time1 - time0);
+        chfl_free(property);
+        if ((framelength == 0.0)
+            || (result0 != CHFL_SUCCESS)
+            || (result1 != CHFL_SUCCESS)) {
+            fprintf(stderr, "ERROR: Reading framelength from trajectory failed. You can provide the framelength with command line arguments.\n");
+            return 1;
+        }
     }
-    result = read_trr(traj, natoms_traj, &step, &time1, &lambda, box, r, v, NULL, &has_prop);
-    if (result != 0) {
-        fprintf(stderr, "ERROR: Second frame of trajectory broken\n");
-        return 1;
+    else {
+        framelength = arguments.framelength;
     }
-    framelength = time1 - time0;
-    verbPrintf(verbosity, "%f\n", framelength);
-    free(r);
-    free(v);
-    // go back to start of file
-    xdrfile_close(traj);
-    traj = xdrfile_open(trajectory_file , "r");
+    chfl_free(frame);
+    chfl_trajectory_close(file);
+    verbPrintf(verbosity, "framelength is %f ps\n", framelength);
+
+    // open file for calculations
+    file = chfl_trajectory_open(trajectory_file, 'r');
 
     // output arrays
     const size_t ndos = 12;
@@ -278,9 +304,8 @@ int main( int argc, char *argv[] )
             float* atom_velocities_sqrt_m_vib = calloc(natoms*3*nblocksteps, sizeof(float));
             float* atom_velocities_sqrt_m_rot = calloc(natoms*3*nblocksteps, sizeof(float));
 
-            decomposeVelocities (traj,
+            decomposeVelocities (file,
                     nblocksteps,
-                    natoms_traj,
                     nmols,
                     nmoltypes,
                     mols_firstatom,
@@ -346,7 +371,7 @@ int main( int argc, char *argv[] )
         free(mol_moments_of_inertia);
     }
     verbPrintf(verbosity, "finished all samples\n");
-    xdrfile_close(traj);
+    chfl_trajectory_close(file);
 
     // divide moi by nmols
     for (size_t h=0; h<nmoltypes; h++)
