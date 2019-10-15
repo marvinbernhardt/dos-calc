@@ -7,7 +7,7 @@ Calculation of translational, rotational and vibrational density of states
 - CBLAS
 - LAPACKE
 - FFTW
-- [libxdrfile](https://github.com/wesbarnett/libxdrfile) 
+- [Chemfiles](https://chemfiles.org) (0.9 does not yet contain .trr reader, but master does)
 - [cJSON](https://github.com/DaveGamble/cJSON) 
 
 ## Installation
@@ -198,10 +198,23 @@ A verbal (and therefore not exact) description of the DoS components:
 - `vib_x` is the power spectrum of the x component of the velocities of the atoms due to molecular vibrational motion.
 - `rot_a` is the power spectrum of the angular velocity times sqrt(I_a) around principal axis 'a' of each molecule.
 
+## Units
+
+Masses are assumed to be provided in u.
+
+The framelength will be read from the trajectory for .trr files or from the command line argument and is assumed to be in picoseconds.
+
+DosCalc relies on Chemfiles for reading the trajectory. Chemfiles usually converts units to Å and Å/ps. DosCalc converts those to nm and nm/ps by dividing positions and velocities by 10. Thereby the Gromacs unit system is established and the unit of energy is [E] = u * nm²/ps² = kJ/mol.
+
+However, for some formats, like lammps dumps, chemfiles can not infer the unit of the velocity and proviedes it unmodified. The energy will have the unit [E] = u * ([v] * 10)². So for example if lammps runs with units *real*, then [v] = Å/fs and therefore [E] = u * Å²/fs² * 100 = u * nm²/fs² = 10^6 kJ/mol.
+
+The unit of the DoS is [S] = [E] * ps.
+
 ## Limitations
 
-- PBC recombination does not work for non-orthorhombic boxes.
-  However one can make all molecules whole in the trajectory (`gmx trjconv -pbc mol`) before using `dos-calc` and then use the --no-pbc option.
+- Was tested only with Lammps and Gromacs trajectories.
+- PBC recombination does not work for non-orthorhombic boxes, will produce an error.
+  However one can make all molecules whole in the trajectory (for example with `gmx trjconv -pbc mol`) before using DosCalc and then use the `--no-pbc` option.
   Whole molecules are alowed to jump between frames so a full unwrapping of the trajectory is not necessary.
 - The program uses single precision.
 - Linear molecules are assumed to be diatomic.

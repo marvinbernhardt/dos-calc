@@ -15,7 +15,7 @@ find_package(OpenMP REQUIRED)
 find_package(CBLAS REQUIRED)  # self defined
 find_package(LAPACKE REQUIRED) # self defined
 find_package(FFTW REQUIRED)  # self defined
-find_package(xdrfile REQUIRED)
+find_package(chemfiles REQUIRED)
 find_package(cJSON REQUIRED)
 
 add_executable(dos-calc src/dos-calc.c)
@@ -34,14 +34,13 @@ endif(DEBUG)
 
 target_compile_definitions(dos-calc PRIVATE -DVERSION="${PROJECT_VERSION}")
 
-target_include_directories(dos-calc PUBLIC ${xdrfile_INCLUDE_DIRS})
 target_include_directories(dos-calc PUBLIC ${CJSON_INCLUDE_DIRS})
 target_link_libraries(dos-calc PRIVATE OpenMP::OpenMP_C)
 target_link_libraries(dos-calc PRIVATE ${CBLAS_LIBRARIES})
 target_link_libraries(dos-calc PRIVATE ${LAPACKE_LIBRARIES})
 target_link_libraries(dos-calc PRIVATE ${FFTW_LIBRARIES})
 target_link_libraries(dos-calc PRIVATE m gfortran)
-target_link_libraries(dos-calc PUBLIC ${xdrfile_LIBRARIES})
+target_link_libraries(dos-calc PRIVATE chemfiles)
 target_link_libraries(dos-calc PUBLIC ${CJSON_LIBRARIES})
 
 install(TARGETS dos-calc

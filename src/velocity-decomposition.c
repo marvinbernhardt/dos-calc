@@ -5,8 +5,7 @@
 #include <string.h>
 #include <cblas.h>
 #include <lapacke.h>
-#include "xdrfile.h"
-#include "xdrfile_trr.h"
+#include <chemfiles.h>
 #include "linear-algebra.c"
 
 #ifdef DEBUG
@@ -29,9 +28,8 @@ float sqrt_neg_zero(float number)
         return sqrt(number);
 }
 
-void decomposeVelocities (XDRFILE *traj,
+void decomposeVelocities (CHFL_TRAJECTORY* file,
         unsigned long nblocksteps,
-        size_t natoms_traj,
         size_t nmols,
         size_t nmoltypes,
         size_t *mol_firstatom,
@@ -49,16 +47,14 @@ void decomposeVelocities (XDRFILE *traj,
         float *atom_velocities_sqrt_m_rot,
         float *mol_moments_of_inertia)
 {
+
     // for reading of frame
-    int step;
-    float time;
-    float lambda;
-    matrix box;
-    rvec *r;
-    rvec *v;
-    int has_prop;
-    r = calloc(natoms_traj, sizeof(*r));
-    v = calloc(natoms_traj, sizeof(*v));
+    CHFL_FRAME* frame = chfl_frame();
+    CHFL_CELL* cell;
+    chfl_vector3d* r = NULL;
+    chfl_vector3d* v = NULL;
+    uint64_t natoms_traj = 0;
+    chfl_vector3d box = {0, 0, 0};
 
     // no dynamic teams!!!
     omp_set_dynamic(0);
@@ -92,14 +88,14 @@ void decomposeVelocities (XDRFILE *traj,
     DPRINT("start reading frame\n");
     for (unsigned long t=0; t<nblocksteps; t++)
     {
-        if (read_trr(traj, natoms_traj, &step, &time, &lambda, box, r, v, NULL, &has_prop) != 0)
-        {
-            fprintf(stderr, "ERROR: Reading frame %lu failed\n", t);
-            exit(1);
-        }
+        chfl_trajectory_read(file, frame);
+        chfl_frame_positions(frame, &r, &natoms_traj);
+        chfl_frame_velocities(frame, &v, &natoms_traj);
+        cell = chfl_cell_from_frame(frame);
+        chfl_cell_lengths(cell, box);
 
-        DPRINT("There are %zu atoms at step %lu (time %f). My box is: %f %f %f \n",
-                natoms_traj, t, time, box[0][0], box[1][1], box[2][2]);
+        DPRINT("There are %lu atoms at step %lu. My box is: %f %f %f \n",
+               natoms_traj, t, box[0], box[1], box[2]);
 
         // loop over molecules
         #pragma omp parallel for
@@ -123,30 +119,30 @@ void decomposeVelocities (XDRFILE *traj,
                     {
                         size_t jj = m_firstatom + j;
                         float dist_to_firstatom = r[jj][dim] - r[m_firstatom][dim];
-                        if(dist_to_firstatom > 0.5 * box[dim][dim])
+                        if(dist_to_firstatom > 0.5 * box[dim])
                         {
-                            r[jj][dim] -= box[dim][dim];
+                            r[jj][dim] -= box[dim];
                         }
-                        if(dist_to_firstatom < -0.5 * box[dim][dim])
+                        if(dist_to_firstatom < -0.5 * box[dim])
                         {
-                            r[jj][dim] += box[dim][dim];
+                            r[jj][dim] += box[dim];
                         }
                     }
                 }
             }
 
-            // read atoms of one molecule
+            // read atoms of one molecule and convert to nm and nm/ps
             for (size_t j=0; j<m_natoms; j++)
             {
                 size_t jj = m_firstatom + j;
                 DPRINT("scanning atom %zu (nr. %zu in molecule)\n", jj, j);
 
-                positions[3*j+0] = r[jj][0];
-                positions[3*j+1] = r[jj][1];
-                positions[3*j+2] = r[jj][2];
-                velocities[3*j+0] = v[jj][0];
-                velocities[3*j+1] = v[jj][1];
-                velocities[3*j+2] = v[jj][2];
+                positions[3*j+0] = r[jj][0] / 10.0;
+                positions[3*j+1] = r[jj][1] / 10.0;
+                positions[3*j+2] = r[jj][2] / 10.0;
+                velocities[3*j+0] = v[jj][0] / 10.0;
+                velocities[3*j+1] = v[jj][1] / 10.0;
+                velocities[3*j+2] = v[jj][2] / 10.0;
 
                 DPRINT("%8.3f%8.3f%8.3f%8.4f%8.4f%8.4f\n",
                         positions[3*j+0], positions[3*j+1], positions[3*j+2],
@@ -529,7 +525,7 @@ void decomposeVelocities (XDRFILE *traj,
                     mol_omegas_sqrt_i_rot[3*nblocksteps*i + nblocksteps*1 + t], mol_omegas_sqrt_i_rot[3*nblocksteps*i + nblocksteps*2 + t]);
         }
 
-        DPRINT("Step %lu (time %f) finished\n", t, time);
+        DPRINT("Step %lu finished\n", t);
     }
 
     #pragma omp parallel
