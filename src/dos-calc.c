@@ -382,8 +382,9 @@ int main( int argc, char *argv[] )
     // normalize dos
     for (size_t h=0; h<nmoltypes; h++)
     {
-        float norm_factor = 1.0 / (float)nblocks;
-        norm_factor *= 2.0 * framelength / (float)nblocksteps / (float)moltypes_nmols[h];
+        float norm_factor = 1.0 / (float)nblocks;  // normalize for blocks
+        norm_factor *= framelength / (float)nblocksteps;  // normalize DFT
+        norm_factor /= (float)moltypes_nmols[h];  // normalize nmols
         DPRINT("norm_factor for moltype %zu: %f\n", h, norm_factor);
         size_t dos_index = h*ndos*nsamples*nfrequencies;
         cblas_sscal(ndos*nsamples*nfrequencies, norm_factor, &moltypes_dos_samples[dos_index], 1);
@@ -391,7 +392,7 @@ int main( int argc, char *argv[] )
 
     // normalize cross spectra
     float norm_factor = 1.0 / (float)nblocks;
-    norm_factor *= 2.0 * framelength / (float)nblocksteps;
+    norm_factor *= framelength / (float)nblocksteps;
     cblas_sscal(ncross_spectra*nsamples*nfrequencies, norm_factor, &cross_spectra_samples[0], 1);
 
     // write dos.json
