@@ -68,7 +68,7 @@ def _plot_spectra(system, show_components, show_cross, show_samples, show_roto, 
                 print(f"integral {dos_name}: {np.trapz(np.mean(dos, axis=0), freq):.4E} kJ/mol")
             else:
                 prefactor = 2 / K_GRO / temperature
-                print(f"integral {dos_name}: {np.trapz(np.mean(dos, axis=0), freq) * prefactor:.4E}")
+                print(f"integral {dos_name} / (1/2 k T): {np.trapz(np.mean(dos, axis=0), freq) * prefactor:.4E}")
             # plot
             if show_components:
                 color = plt.get_cmap('brg')(h/nmoltypes+d/nmoltypes/nspectra)
@@ -98,7 +98,7 @@ def _plot_spectra(system, show_components, show_cross, show_samples, show_roto, 
                 print(f"integral {cs_name}: {np.trapz(np.mean(cs, axis=0), freq):.4E} kJ/mol")
             else:
                 prefactor = 2 / K_GRO / temperature
-                print(f"integral {cs_name}: {np.trapz(np.mean(cs, axis=0), freq) * prefactor:.4E}")
+                print(f"integral {cs_name} / (1/2 k T): {np.trapz(np.mean(cs, axis=0), freq) * prefactor:.4E}")
             line, = ax.plot(freq, prefactor * np.mean(cs, axis=0),
                             color=plt.get_cmap('Set2')(d/8),
                             label=cs_name)
@@ -112,7 +112,7 @@ def _plot_spectra(system, show_components, show_cross, show_samples, show_roto, 
     if temperature is None:
         ax.set_ylabel("DoS in kJ/mol ps")
     else:
-        ax.set_ylabel("DoS in ps")
+        ax.set_ylabel("DoS / (1/2 k T) in ps")
     ax.set_xlim(0)
     ax.set_ylim(0)
     ax.legend()
