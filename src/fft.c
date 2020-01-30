@@ -8,7 +8,7 @@
 #include "structs.h"
 
 #ifdef DEBUG
-#define DPRINT(...) do{ fprintf( stdout, __VA_ARGS__ ); } while( 0 )
+#define DPRINT(...) do{ fprintf( stderr, __VA_ARGS__ ); } while( 0 )
 #else
 #define DPRINT(...)
 #endif

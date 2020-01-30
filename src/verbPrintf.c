@@ -10,7 +10,7 @@ void verbPrintf(bool verbosity, const char *format, ...)
         return;
 
     va_start(args, format);
-    vfprintf (stdout, format, args);
+    vfprintf (stderr, format, args);
     va_end(args);
 }
 
