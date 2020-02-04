@@ -244,6 +244,10 @@ int parse_dosparams(const char *dosparams_file,
         {
             cJSON *abc_indicator = cJSON_GetArrayItem(abc_indicators_json, j);
             (*moltypes_abc_indicators)[h][j] = (size_t) json_parse_int_nokey(abc_indicator);
+            if (((*moltypes_abc_indicators)[h][j] == -1) && (j == 0 || j == 2)) {
+                fprintf(stderr, "ERROR: only the second and fourth abc indicator can be -1.\n");
+                exit(1);
+            }
         }
     }
 

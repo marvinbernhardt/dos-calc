@@ -5,7 +5,7 @@ Calculation of translational, rotational and vibrational density of states
 ## Dependencies
 
 - CBLAS
-- LAPACKE
+- LAPACKE (Do not use 3.9! there is a [bug that causes wrong eigenvectors](https://github.com/Reference-LAPACK/lapack/issues/379). 3.8 is fine.)
 - FFTW
 - [Chemfiles](https://chemfiles.org) (0.9 does not yet contain .trr reader, but master does)
 - [cJSON](https://github.com/DaveGamble/cJSON) 
@@ -105,7 +105,7 @@ For each moltype there is also:
 
 - `rot_treat`, which is a char that determines the method used for the rotational treatment.
 - `abc_indicators`, which is a list of four integers, which indicate two pairs of atoms (zero indexed).
-  If the number is -1 it stands for the center of mass of the molecule.
+  If the number is -1 it stands for the center of mass of the molecule, but this is only allowed for the second number of each pair.
   These atom pairs define the helping vectors a, b and c, that are related to the true principal axes (from lowest to highest moment of inertia)
   The first two numbers define a, the second two define b'. c is the cross product of a and b', b is the cross product of c and a.
 
