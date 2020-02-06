@@ -342,9 +342,12 @@ void decomposeVelocities (CHFL_TRAJECTORY* file,
                 }
 
                 // save moments of inertia for each molecule
-                for (size_t dim=0; dim<3; dim++)
+                #pragma omp critical
                 {
-                    mol_moments_of_inertia[3*i+dim] += moi_tensor[3*dim+dim];
+                    for (size_t dim=0; dim<3; dim++)
+                    {
+                        mol_moments_of_inertia[3*i+dim] += moi_tensor[3*dim+dim];
+                    }
                 }
 
                 continue;
@@ -366,9 +369,12 @@ void decomposeVelocities (CHFL_TRAJECTORY* file,
                     moments_of_inertia[0], moments_of_inertia[1], moments_of_inertia[2]);
 
             // save moments of inertia for each molecule
-            for (size_t dim=0; dim<3; dim++)
+            #pragma omp critical
             {
-                mol_moments_of_inertia[3*i+dim] += moments_of_inertia[dim];
+                for (size_t dim=0; dim<3; dim++)
+                {
+                    mol_moments_of_inertia[3*i+dim] += moments_of_inertia[dim];
+                }
             }
 
             DPRINT("eigenvectors (in columns):\n");
