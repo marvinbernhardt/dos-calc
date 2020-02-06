@@ -238,13 +238,14 @@ int main( int argc, char *argv[] )
         CHFL_PROPERTY *property = chfl_frame_get_property(frame, "time");
         result0 = chfl_property_get_double(property, &time0);
         verbPrintf(verbosity, "time of first frame is %f ps\n", time0);
+        chfl_free(property);
         // get time1
         chfl_trajectory_read(file, frame);
         property = chfl_frame_get_property(frame, "time");
         result1 = chfl_property_get_double(property, &time1);
         verbPrintf(verbosity, "time of second frame is %f ps\n", time1);
-        framelength = (float) (time1 - time0);
         chfl_free(property);
+        framelength = (float) (time1 - time0);
         if ((framelength == 0.0)
             || (result0 != CHFL_SUCCESS)
             || (result1 != CHFL_SUCCESS)) {

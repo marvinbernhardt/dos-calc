@@ -49,14 +49,17 @@ void decomposeVelocities (CHFL_TRAJECTORY* file,
 {
 
     // for reading of frame
-    CHFL_FRAME* frame = chfl_frame();
-    CHFL_CELL* cell;
-    chfl_vector3d* r = NULL;
-    chfl_vector3d* v = NULL;
-    uint64_t natoms_traj = 0;
-    chfl_vector3d box = {0, 0, 0};
+    static CHFL_FRAME* frame;
+    static CHFL_CELL* cell;
+    static chfl_vector3d* r = NULL;
+    static chfl_vector3d* v = NULL;
+    static uint64_t natoms_traj = 0;
+    static chfl_vector3d box = {0, 0, 0};
+    static uint64_t t = 0;
+    #pragma omp threadprivate(frame, cell, r, v, natoms_traj, box, t)
+    // https://stackoverflow.com/questions/22592378/reusable-private-dynamically-allocated-arrays-in-openmp
 
-    // no dynamic teams!!!
+    // no dynamic teams!
     omp_set_dynamic(0);
 
     // per-molecule arrays
@@ -83,12 +86,22 @@ void decomposeVelocities (CHFL_TRAJECTORY* file,
         velocities = calloc(3*mol_natoms_max, sizeof(float));
         positions_rel = calloc(3*mol_natoms_max, sizeof(float));
         velocities_rot = calloc(3*mol_natoms_max, sizeof(float));
+        frame = chfl_frame();
     }
 
+    // used to keep track of current step
+    uint64_t t_global = 0;
+
     DPRINT("start reading frame\n");
-    for (unsigned long t=0; t<nblocksteps; t++)
+    #pragma omp parallel for
+    for (unsigned long step=0; step<nblocksteps; step++)
     {
-        chfl_trajectory_read(file, frame);
+        #pragma omp critical
+        {
+            chfl_trajectory_read(file, frame);
+            t = t_global;
+            t_global++;
+        }
         chfl_frame_positions(frame, &r, &natoms_traj);
         chfl_frame_velocities(frame, &v, &natoms_traj);
         cell = chfl_cell_from_frame(frame);
@@ -98,7 +111,6 @@ void decomposeVelocities (CHFL_TRAJECTORY* file,
                natoms_traj, t, box[0], box[1], box[2]);
 
         // loop over molecules
-        #pragma omp parallel for
         for (size_t i=0; i<nmols; i++)
         {
             DPRINT("\ndoing molecule %zu\n", i);
@@ -534,6 +546,7 @@ void decomposeVelocities (CHFL_TRAJECTORY* file,
         free(positions);
         free(positions_rel);
         free(velocities_rot);
+        chfl_free(frame);
     }
 
     // free help arrays
