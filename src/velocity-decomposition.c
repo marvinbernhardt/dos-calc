@@ -96,6 +96,7 @@ void decomposeVelocities (CHFL_TRAJECTORY* file,
     #pragma omp parallel for
     for (unsigned long step=0; step<nblocksteps; step++)
     {
+        // needed to find out t (current step)
         #pragma omp critical
         {
             chfl_trajectory_read(file, frame);
