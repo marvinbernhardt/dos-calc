@@ -51,7 +51,7 @@ void decomposeVelocities (
         float *mol_block_moments_of_inertia)
 {
 
-    // no dynamic teams!
+    // no dynamic teams since molecules all cause roughly the same work
     omp_set_dynamic(0);
 
     // per-molecule arrays
@@ -81,13 +81,15 @@ void decomposeVelocities (
     }
 
     DPRINT("start time loop\n");
-    #pragma omp parallel for
     for (unsigned long t=0; t<nblocksteps; t++)
     {
         DPRINT("There are %lu atoms at step %lu. My box is: %f %f %f \n",
                natoms, t, block_box[3*t+0], box[3*t+1], box[3*t+2]);
 
+        // arrays for intermediate results to split up molecule loop
+
         // loop over molecules
+        #pragma omp parallel for
         for (size_t i=0; i<nmols; i++)
         {
             DPRINT("\ndoing molecule %zu\n", i);
@@ -396,17 +398,77 @@ void decomposeVelocities (
             DPRINT("%f %f %f\n", b[0], b[1], b[2]);
             DPRINT("%f %f %f\n", c[0], c[1], c[2]);
 
+            if (m_rot_treat == 'a' || m_rot_treat == 'b')
+            {
+                // calculate angular velocity and momentum in abc coords
+                float abc[9];
+                cblas_scopy(3, a, 1, &abc[0], 3);
+                cblas_scopy(3, b, 1, &abc[1], 3);
+                cblas_scopy(3, c, 1, &abc[2], 3);
+                float angular_velocity_abc[3] = {0.0, 0.0, 0.0};
+                float angular_momentum_abc[3] = {0.0, 0.0, 0.0};
+                // angular_velocity_abc = angular_velocity @ abc
+                for (size_t dim=0; dim<3; dim++)
+                {
+                    angular_velocity_abc[dim] = cblas_sdot(3, angular_velocity, 1,
+                            &abc[dim], 3);
+                    angular_momentum_abc[dim] = cblas_sdot(3, angular_momentum, 1,
+                            &abc[dim], 3);
+                }
+                DPRINT("angular velocity abc coord: %8.4f%8.4f%8.4f\n",
+                        angular_velocity_abc[0], angular_velocity_abc[1], angular_velocity_abc[2]);
+                DPRINT("angular momentum abc coord: %8.4f%8.4f%8.4f\n",
+                        angular_momentum_abc[0], angular_momentum_abc[1], angular_momentum_abc[2]);
+
+                // calc moi_tensor in abc coords
+                float temp_matrix[9] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+                float abc_inv[9] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+                inverseMatrix3x3(abc, abc_inv);
+                // temp_matrix = abc_inv @ moi_tensor
+                cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, 3, 3, 3, 1.0,
+                        abc_inv, 3,
+                        moi_tensor, 3,
+                        0.0, temp_matrix, 3);
+                DPRINT("temp_matrix:\n");
+                DPRINT("%f %f %f\n", temp_matrix[0], temp_matrix[1], temp_matrix[2]);
+                DPRINT("%f %f %f\n", temp_matrix[3], temp_matrix[4], temp_matrix[5]);
+                DPRINT("%f %f %f\n", temp_matrix[6], temp_matrix[7], temp_matrix[8]);
+
+                // moi_abc = temp_matrix @ abc
+                float moi_tensor_abc[9] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+                cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, 3, 3, 3, 1.0,
+                        temp_matrix, 3,
+                        abc, 3,
+                        0.0, moi_tensor_abc, 3);
+                DPRINT("moi_tensor_abc:\n");
+                DPRINT("%f %f %f\n", moi_tensor_abc[0], moi_tensor_abc[1], moi_tensor_abc[2]);
+                DPRINT("%f %f %f\n", moi_tensor_abc[3], moi_tensor_abc[4], moi_tensor_abc[5]);
+                DPRINT("%f %f %f\n", moi_tensor_abc[6], moi_tensor_abc[7], moi_tensor_abc[8]);
+
+                // writing in output arrays the rotational velocities
+                for (size_t dim=0; dim<3; dim++)
+                {
+                    // 'a'bc as rotational axis
+                    if (m_rot_treat == 'a')
+                    {
+                        mol_omegas_sqrt_i_rot[3*nblocksteps*i + nblocksteps*dim + t] = angular_velocity_abc[dim] * sqrt(moi_tensor_abc[3*dim+dim]);
+                    }
+                    // a'b'c as rotational axis, but J/sqrt(I)
+                    else if (m_rot_treat == 'b')
+                    {
+                        mol_omegas_sqrt_i_rot[3*nblocksteps*i + nblocksteps*dim + t] = angular_momentum_abc[dim] / sqrt(moi_tensor_abc[3*dim+dim]);
+                    }
+                }
+            }
+
             // check if eigenvector points in same general direction as abc
             // if not flip eigenvector
-            if (m_rot_treat != 'g')
-            {
-                if (cblas_sdot(3, &eigenvectors[0], 3, a, 1) < 0.0)
-                    cblas_sscal(3, -1.0, &eigenvectors[0], 3);
-                if (cblas_sdot(3, &eigenvectors[1], 3, b, 1) < 0.0)
-                    cblas_sscal(3, -1.0, &eigenvectors[1], 3);
-                if (cblas_sdot(3, &eigenvectors[2], 3, c, 1) < 0.0)
-                    cblas_sscal(3, -1.0, &eigenvectors[2], 3);
-            }
+            if (cblas_sdot(3, &eigenvectors[0], 3, a, 1) < 0.0)
+                cblas_sscal(3, -1.0, &eigenvectors[0], 3);
+            if (cblas_sdot(3, &eigenvectors[1], 3, b, 1) < 0.0)
+                cblas_sscal(3, -1.0, &eigenvectors[1], 3);
+            if (cblas_sdot(3, &eigenvectors[2], 3, c, 1) < 0.0)
+                cblas_sscal(3, -1.0, &eigenvectors[2], 3);
 
             DPRINT("eigenvectors unflipped:\n");
             DPRINT("%f %f %f\n", eigenvectors[0], eigenvectors[1], eigenvectors[2]);
@@ -422,51 +484,6 @@ void decomposeVelocities (
             }
             DPRINT("angular velocity new coord: %8.4f%8.4f%8.4f\n",
                     angular_velocity_nc[0], angular_velocity_nc[1], angular_velocity_nc[2]);
-
-            // calculate angular velocity and momentum in abc coords
-            float abc[9];
-            cblas_scopy(3, a, 1, &abc[0], 3);
-            cblas_scopy(3, b, 1, &abc[1], 3);
-            cblas_scopy(3, c, 1, &abc[2], 3);
-            float angular_velocity_abc[3] = {0.0, 0.0, 0.0};
-            float angular_momentum_abc[3] = {0.0, 0.0, 0.0};
-            // angular_velocity_abc = angular_velocity @ abc
-            for (size_t dim=0; dim<3; dim++)
-            {
-                angular_velocity_abc[dim] = cblas_sdot(3, angular_velocity, 1,
-                        &abc[dim], 3);
-                angular_momentum_abc[dim] = cblas_sdot(3, angular_momentum, 1,
-                        &abc[dim], 3);
-            }
-            DPRINT("angular velocity abc coord: %8.4f%8.4f%8.4f\n",
-                    angular_velocity_abc[0], angular_velocity_abc[1], angular_velocity_abc[2]);
-            DPRINT("angular momentum abc coord: %8.4f%8.4f%8.4f\n",
-                    angular_momentum_abc[0], angular_momentum_abc[1], angular_momentum_abc[2]);
-
-            // calc moi_tensor in abc coords
-            float temp_matrix[9] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-            float abc_inv[9] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-            float moi_tensor_abc[9] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-            inverseMatrix3x3(abc, abc_inv);
-            // temp_matrix = abc_inv @ moi_tensor
-            cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, 3, 3, 3, 1.0,
-                    abc_inv, 3,
-                    moi_tensor, 3,
-                    0.0, temp_matrix, 3);
-            DPRINT("temp_matrix:\n");
-            DPRINT("%f %f %f\n", temp_matrix[0], temp_matrix[1], temp_matrix[2]);
-            DPRINT("%f %f %f\n", temp_matrix[3], temp_matrix[4], temp_matrix[5]);
-            DPRINT("%f %f %f\n", temp_matrix[6], temp_matrix[7], temp_matrix[8]);
-            // moi_abc = temp_matrix @ abc
-            cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, 3, 3, 3, 1.0,
-                    temp_matrix, 3,
-                    abc, 3,
-                    0.0, moi_tensor_abc, 3);
-            DPRINT("moi_tensor_abc:\n");
-            DPRINT("%f %f %f\n", moi_tensor_abc[0], moi_tensor_abc[1], moi_tensor_abc[2]);
-            DPRINT("%f %f %f\n", moi_tensor_abc[3], moi_tensor_abc[4], moi_tensor_abc[5]);
-            DPRINT("%f %f %f\n", moi_tensor_abc[6], moi_tensor_abc[7], moi_tensor_abc[8]);
-
             // writing in output arrays the rotational velocities
             for (size_t dim=0; dim<3; dim++)
             {
@@ -475,30 +492,6 @@ void decomposeVelocities (
                 {
                     mol_omegas_sqrt_i_rot[3*nblocksteps*i + nblocksteps*dim + t] = angular_velocity_nc[dim] * sqrt(moments_of_inertia[dim]);
                 }
-                // 'a'bc as rotational axis
-                else if (m_rot_treat == 'a')
-                {
-                    mol_omegas_sqrt_i_rot[3*nblocksteps*i + nblocksteps*dim + t] = angular_velocity_abc[dim] * sqrt(moi_tensor_abc[3*dim+dim]);
-                }
-                // a'b'c as rotational axis, but J/sqrt(I)
-                else if (m_rot_treat == 'b')
-                {
-                    mol_omegas_sqrt_i_rot[3*nblocksteps*i + nblocksteps*dim + t] = angular_momentum_abc[dim] / sqrt(moi_tensor_abc[3*dim+dim]);
-                }
-                /*
-                // angular velocity in 'x'yz (omega times sqrt(I)); does not give total rotational energy
-                else if (m_rot_treat == 'x')
-                {
-                    mol_omegas_sqrt_i_rot[3*nblocksteps*i + nblocksteps*dim + t] = angular_velocity[dim] * sqrt(moi_tensor[3*dim+dim]);
-                }
-                // angular momentum in x'y'z (L over sqrt(I)); does not give total rotational energy
-                else if (m_rot_treat == 'y')
-                {
-                    mol_omegas_sqrt_i_rot[3*nblocksteps*i + nblocksteps*dim + t] = angular_momentum[dim] / sqrt(moi_tensor[3*dim+dim]);
-                }
-                */
-
-                // TODO catch other input
             }
             DPRINT("mol_omegas_sqrt_i_rot: %8.4f%8.4f%8.4f\n",
                     mol_omegas_sqrt_i_rot[3*nblocksteps*i + nblocksteps*0 + t],
