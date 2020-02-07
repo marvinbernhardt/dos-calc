@@ -5,7 +5,6 @@
 #include <string.h>
 #include <cblas.h>
 #include <lapacke.h>
-#include <chemfiles.h>
 #include "linear-algebra.c"
 
 #ifdef DEBUG
@@ -28,8 +27,12 @@ float sqrt_neg_zero(float number)
         return sqrt(number);
 }
 
-void decomposeVelocities (CHFL_TRAJECTORY* file,
+void decomposeVelocities (
+        float *block_pos,
+        float *block_vel,
+        float *block_box,
         unsigned long nblocksteps,
+        size_t natoms,
         size_t nmols,
         size_t nmoltypes,
         size_t *mol_firstatom,
@@ -45,19 +48,8 @@ void decomposeVelocities (CHFL_TRAJECTORY* file,
         float *mol_omegas_sqrt_i_rot,
         float *atom_velocities_sqrt_m_vib,
         float *atom_velocities_sqrt_m_rot,
-        float *mol_moments_of_inertia)
+        float *mol_block_moments_of_inertia)
 {
-
-    // for reading of frame
-    static CHFL_FRAME* frame;
-    static CHFL_CELL* cell;
-    static chfl_vector3d* r = NULL;
-    static chfl_vector3d* v = NULL;
-    static uint64_t natoms_traj = 0;
-    static chfl_vector3d box = {0, 0, 0};
-    static uint64_t t = 0;
-    #pragma omp threadprivate(frame, cell, r, v, natoms_traj, box, t)
-    // https://stackoverflow.com/questions/22592378/reusable-private-dynamically-allocated-arrays-in-openmp
 
     // no dynamic teams!
     omp_set_dynamic(0);
@@ -86,30 +78,14 @@ void decomposeVelocities (CHFL_TRAJECTORY* file,
         velocities = calloc(3*mol_natoms_max, sizeof(float));
         positions_rel = calloc(3*mol_natoms_max, sizeof(float));
         velocities_rot = calloc(3*mol_natoms_max, sizeof(float));
-        frame = chfl_frame();
     }
 
-    // used to keep track of current step
-    uint64_t t_global = 0;
-
-    DPRINT("start reading frame\n");
+    DPRINT("start time loop\n");
     #pragma omp parallel for
-    for (unsigned long step=0; step<nblocksteps; step++)
+    for (unsigned long t=0; t<nblocksteps; t++)
     {
-        // needed to find out t (current step)
-        #pragma omp critical
-        {
-            chfl_trajectory_read(file, frame);
-            t = t_global;
-            t_global++;
-        }
-        chfl_frame_positions(frame, &r, &natoms_traj);
-        chfl_frame_velocities(frame, &v, &natoms_traj);
-        cell = chfl_cell_from_frame(frame);
-        chfl_cell_lengths(cell, box);
-
         DPRINT("There are %lu atoms at step %lu. My box is: %f %f %f \n",
-               natoms_traj, t, box[0], box[1], box[2]);
+               natoms, t, block_box[3*t+0], box[3*t+1], box[3*t+2]);
 
         // loop over molecules
         for (size_t i=0; i<nmols; i++)
@@ -123,6 +99,24 @@ void decomposeVelocities (CHFL_TRAJECTORY* file,
             int *m_abc_indicators = moltype_abc_indicators[m_moltype];
             char m_rot_treat = moltype_rot_treat[m_moltype];
 
+            // reading into threadprivate arrays
+            for (size_t j=0; j<m_natoms; j++)
+            {
+                size_t jj = m_firstatom + j;
+                DPRINT("scanning atom %zu (nr. %zu in molecule)\n", jj, j);
+
+                positions[3*j+0] = block_pos[3*natoms*t + 3*jj + 0];
+                positions[3*j+1] = block_pos[3*natoms*t + 3*jj + 1];
+                positions[3*j+2] = block_pos[3*natoms*t + 3*jj + 2];
+                velocities[3*j+0] = block_vel[3*natoms*t + 3*jj + 0];
+                velocities[3*j+1] = block_vel[3*natoms*t + 3*jj + 1];
+                velocities[3*j+2] = block_vel[3*natoms*t + 3*jj + 2];
+
+                DPRINT("%8.3f%8.3f%8.3f%8.4f%8.4f%8.4f\n",
+                        positions[3*j+0], positions[3*j+1], positions[3*j+2],
+                        velocities[3*j+0], velocities[3*j+1], velocities[3*j+2]);
+            }
+
             //recombination
             if (no_pbc==false)
             {
@@ -130,36 +124,17 @@ void decomposeVelocities (CHFL_TRAJECTORY* file,
                 {
                     for(size_t j=1; j<m_natoms; j++)
                     {
-                        size_t jj = m_firstatom + j;
-                        float dist_to_firstatom = r[jj][dim] - r[m_firstatom][dim];
-                        if(dist_to_firstatom > 0.5 * box[dim])
+                        float dist_to_firstatom = positions[3*j+dim] - positions[3*0+dim];
+                        if(dist_to_firstatom > 0.5 * block_box[3*t+dim])
                         {
-                            r[jj][dim] -= box[dim];
+                            positions[3*j+dim] -= block_box[3*t+dim];
                         }
-                        if(dist_to_firstatom < -0.5 * box[dim])
+                        if(dist_to_firstatom < -0.5 * block_box[3*t+dim])
                         {
-                            r[jj][dim] += box[dim];
+                            positions[3*j+dim] += block_box[3*t+dim];
                         }
                     }
                 }
-            }
-
-            // read atoms of one molecule and convert to nm and nm/ps
-            for (size_t j=0; j<m_natoms; j++)
-            {
-                size_t jj = m_firstatom + j;
-                DPRINT("scanning atom %zu (nr. %zu in molecule)\n", jj, j);
-
-                positions[3*j+0] = r[jj][0] / 10.0;
-                positions[3*j+1] = r[jj][1] / 10.0;
-                positions[3*j+2] = r[jj][2] / 10.0;
-                velocities[3*j+0] = v[jj][0] / 10.0;
-                velocities[3*j+1] = v[jj][1] / 10.0;
-                velocities[3*j+2] = v[jj][2] / 10.0;
-
-                DPRINT("%8.3f%8.3f%8.3f%8.4f%8.4f%8.4f\n",
-                        positions[3*j+0], positions[3*j+1], positions[3*j+2],
-                        velocities[3*j+0], velocities[3*j+1], velocities[3*j+2]);
             }
 
             // single atoms
@@ -343,11 +318,10 @@ void decomposeVelocities (CHFL_TRAJECTORY* file,
                 }
 
                 // save moments of inertia for each molecule
-                #pragma omp critical
                 {
                     for (size_t dim=0; dim<3; dim++)
                     {
-                        mol_moments_of_inertia[3*i+dim] += moi_tensor[3*dim+dim];
+                        mol_block_moments_of_inertia[3*nblocksteps*i + nblocksteps*dim + t] += moi_tensor[3*dim+dim];
                     }
                 }
 
@@ -370,11 +344,10 @@ void decomposeVelocities (CHFL_TRAJECTORY* file,
                     moments_of_inertia[0], moments_of_inertia[1], moments_of_inertia[2]);
 
             // save moments of inertia for each molecule
-            #pragma omp critical
             {
                 for (size_t dim=0; dim<3; dim++)
                 {
-                    mol_moments_of_inertia[3*i+dim] += moments_of_inertia[dim];
+                    mol_block_moments_of_inertia[3*nblocksteps*i + nblocksteps*dim + t] += moments_of_inertia[dim];
                 }
             }
 
@@ -553,10 +526,5 @@ void decomposeVelocities (CHFL_TRAJECTORY* file,
         free(positions);
         free(positions_rel);
         free(velocities_rot);
-        chfl_free(frame);
     }
-
-    // free help arrays
-    free(r);
-    free(v);
 }

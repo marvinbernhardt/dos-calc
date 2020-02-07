@@ -6,6 +6,7 @@
 #include <cblas.h>
 #include <math.h>
 #include <chemfiles.h>
+#include "read-trajectory.c"
 #include "velocity-decomposition.c"
 #include "fft.c"
 #include "verbPrintf.c"
@@ -298,15 +299,30 @@ int main( int argc, char *argv[] )
         for (size_t block=0; block<nblocks; block++)
         {
             verbPrintf(verbosity, "now doing block %zu\n", block);
-            verbPrintf(verbosity, "start decomposition\n");
 
+            verbPrintf(verbosity, "start reading trajectory block\n");
+            float* block_pos = calloc(natoms*3*nblocksteps, sizeof(float));
+            float* block_vel = calloc(natoms*3*nblocksteps, sizeof(float));
+            float* block_box = calloc(3*nblocksteps, sizeof(float));
+            readTrajectory (file,
+                    nblocksteps,
+                    natoms,
+                    block_pos,
+                    block_vel,
+                    block_box);
+
+            verbPrintf(verbosity, "start decomposition\n");
             float* mol_velocities_sqrt_m_trn = calloc(nmols*3*nblocksteps, sizeof(float));
             float* mol_omegas_sqrt_i_rot = calloc(nmols*3*nblocksteps, sizeof(float));
             float* atom_velocities_sqrt_m_vib = calloc(natoms*3*nblocksteps, sizeof(float));
             float* atom_velocities_sqrt_m_rot = calloc(natoms*3*nblocksteps, sizeof(float));
-
-            decomposeVelocities (file,
+            float* mol_block_moments_of_inertia = calloc(nmols*3*nblocksteps, sizeof(float));
+            decomposeVelocities (
+                    block_pos,
+                    block_vel,
+                    block_box,
                     nblocksteps,
+                    natoms,
                     nmols,
                     nmoltypes,
                     mols_firstatom,
@@ -322,7 +338,7 @@ int main( int argc, char *argv[] )
                     mol_omegas_sqrt_i_rot,
                     atom_velocities_sqrt_m_vib,
                     atom_velocities_sqrt_m_rot,
-                    mol_moments_of_inertia);
+                    mol_block_moments_of_inertia);
 
 
             verbPrintf(verbosity, "start DoS calculation (FFT)\n");
@@ -346,11 +362,28 @@ int main( int argc, char *argv[] )
                     cross_spectra_samples
                     );
 
-            //free velocities
+            // moi summation over all nblocksteps this block
+            verbPrintf(verbosity, "start sum of moments of inertia this block\n");
+            for (size_t i=0; i<nmols; i++)
+            {
+                for (size_t t=0; t<nblocksteps; t++)
+                {
+                    for (size_t abc=0; abc<3; abc++)
+                    {
+                        mol_moments_of_inertia[3*i + abc] += mol_block_moments_of_inertia[3*nblocksteps*i + nblocksteps*abc + t];
+                    }
+                }
+            }
+
+            //free block stuff
+            free(block_pos);
+            free(block_vel);
+            free(block_box);
             free(mol_velocities_sqrt_m_trn);
             free(mol_omegas_sqrt_i_rot);
             free(atom_velocities_sqrt_m_vib);
             free(atom_velocities_sqrt_m_rot);
+            free(mol_block_moments_of_inertia);
         }
         verbPrintf(verbosity, "finished all blocks\n");
 
