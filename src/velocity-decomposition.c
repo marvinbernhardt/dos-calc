@@ -7,6 +7,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+#include <unistd.h>
 
 #ifdef DEBUG
 #define DPRINT(...)                                                            \
@@ -74,6 +76,11 @@ void decomposeVelocities(
 
 #pragma omp parallel for
     for (size_t i = 0; i < nmols; i++) {
+
+      // TIMING START
+      clock_t begin = clock();
+      int thread_num = omp_get_thread_num();
+
       DPRINT("\ndoing molecule %zu\n", i);
       size_t m_firstatom = mol_firstatom[i];
       size_t m_natoms = mol_natoms[i];
@@ -82,6 +89,11 @@ void decomposeVelocities(
       float *m_atommasses = moltypes_atommasses[m_moltype];
       int *m_abc_indicators = moltype_abc_indicators[m_moltype];
       char m_rot_treat = moltype_rot_treat[m_moltype];
+
+      // TIMING
+      double time_spent = (double)(clock() - begin) / CLOCKS_PER_SEC;
+      printf("TIMING %i - mol vars: %f seconds", thread_num, time_spent);
+      begin = clock();
 
       // reading into threadprivate arrays
       for (size_t j = 0; j < m_natoms; j++) {
@@ -116,6 +128,11 @@ void decomposeVelocities(
           }
         }
       }
+
+      // TIMING
+      time_spent = (double)(clock() - begin) / CLOCKS_PER_SEC;
+      printf("TIMING %i - pos and recomb: %f seconds", thread_num, time_spent);
+      begin = clock();
 
       // single atoms
       // ============
@@ -217,6 +234,11 @@ void decomposeVelocities(
       cblas_scopy(9, moi_tensor, 1, moi_tensor_temp, 1);
       cblas_scopy(3, angular_momentum, 1, angular_velocity, 1);
 
+      // TIMING
+      time_spent = (double)(clock() - begin) / CLOCKS_PER_SEC;
+      printf("TIMING %i - up ang vel: %f seconds", thread_num, time_spent);
+      begin = clock();
+
       // linear molecules
       if (m_rot_treat == 'l') {
         // find angular velocity from underdetermined system of linear equations
@@ -303,6 +325,11 @@ void decomposeVelocities(
         continue;
       }
 
+      // TIMING
+      time_spent = (double)(clock() - begin) / CLOCKS_PER_SEC;
+      printf("TIMING %i - bef eigen: %f seconds", thread_num, time_spent);
+      begin = clock();
+
       // calc moments of inertia and eigenvectors
       float eigenvectors[9] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
       cblas_scopy(9, moi_tensor, 1, eigenvectors, 1);
@@ -331,6 +358,11 @@ void decomposeVelocities(
       DPRINT("%f %f %f\n", eigenvectors[0], eigenvectors[1], eigenvectors[2]);
       DPRINT("%f %f %f\n", eigenvectors[3], eigenvectors[4], eigenvectors[5]);
       DPRINT("%f %f %f\n", eigenvectors[6], eigenvectors[7], eigenvectors[8]);
+
+      // TIMING
+      time_spent = (double)(clock() - begin) / CLOCKS_PER_SEC;
+      printf("TIMING %i - after eigen: %f seconds", thread_num, time_spent);
+      begin = clock();
 
       // abc auxilary vectors
       float a[3] = {0.0, 0.0, 0.0};
@@ -370,6 +402,11 @@ void decomposeVelocities(
       DPRINT("%f %f %f\n", a[0], a[1], a[2]);
       DPRINT("%f %f %f\n", b[0], b[1], b[2]);
       DPRINT("%f %f %f\n", c[0], c[1], c[2]);
+
+      // TIMING
+      time_spent = (double)(clock() - begin) / CLOCKS_PER_SEC;
+      printf("TIMING %i - after abc: %f seconds", thread_num, time_spent);
+      begin = clock();
 
       if (m_rot_treat == 'a' || m_rot_treat == 'b') {
         // calculate angular velocity and momentum in abc coords
@@ -468,6 +505,11 @@ void decomposeVelocities(
              mol_omegas_sqrt_i_rot[3 * nblocksteps * i + nblocksteps * 0 + t],
              mol_omegas_sqrt_i_rot[3 * nblocksteps * i + nblocksteps * 1 + t],
              mol_omegas_sqrt_i_rot[3 * nblocksteps * i + nblocksteps * 2 + t]);
+
+      // TIMING
+      time_spent = (double)(clock() - begin) / CLOCKS_PER_SEC;
+      printf("TIMING %i - end mol: %f seconds", thread_num, time_spent);
+
     }
 
     // print data for one frame
