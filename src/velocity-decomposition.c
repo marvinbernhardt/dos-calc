@@ -92,7 +92,7 @@ void decomposeVelocities(
 
       // TIMING
       double time_spent = (double)(clock() - begin) / CLOCKS_PER_SEC;
-      printf("TIMING %i - mol vars: %f seconds", thread_num, time_spent);
+      printf("TIMING %i - mol vars: %f seconds\n", thread_num, time_spent);
       begin = clock();
 
       // reading into threadprivate arrays
@@ -131,7 +131,7 @@ void decomposeVelocities(
 
       // TIMING
       time_spent = (double)(clock() - begin) / CLOCKS_PER_SEC;
-      printf("TIMING %i - pos and recomb: %f seconds", thread_num, time_spent);
+      printf("TIMING %i - pos and recomb: %f seconds\n", thread_num, time_spent);
       begin = clock();
 
       // single atoms
@@ -234,9 +234,9 @@ void decomposeVelocities(
       cblas_scopy(9, moi_tensor, 1, moi_tensor_temp, 1);
       cblas_scopy(3, angular_momentum, 1, angular_velocity, 1);
 
-      // TIMING
+      // TIMING 5 -> 9 - 74
       time_spent = (double)(clock() - begin) / CLOCKS_PER_SEC;
-      printf("TIMING %i - up ang vel: %f seconds", thread_num, time_spent);
+      printf("TIMING %i - up ang vel: %f seconds\n", thread_num, time_spent);
       begin = clock();
 
       // linear molecules
@@ -325,9 +325,9 @@ void decomposeVelocities(
         continue;
       }
 
-      // TIMING
+      // TIMING 35 -> 130 - 260
       time_spent = (double)(clock() - begin) / CLOCKS_PER_SEC;
-      printf("TIMING %i - bef eigen: %f seconds", thread_num, time_spent);
+      printf("TIMING %i - bef eigen: %f seconds\n", thread_num, time_spent);
       begin = clock();
 
       // calc moments of inertia and eigenvectors
@@ -359,9 +359,9 @@ void decomposeVelocities(
       DPRINT("%f %f %f\n", eigenvectors[3], eigenvectors[4], eigenvectors[5]);
       DPRINT("%f %f %f\n", eigenvectors[6], eigenvectors[7], eigenvectors[8]);
 
-      // TIMING
+      // TIMING 14 -> 78 - 126
       time_spent = (double)(clock() - begin) / CLOCKS_PER_SEC;
-      printf("TIMING %i - after eigen: %f seconds", thread_num, time_spent);
+      printf("TIMING %i - after eigen: %f seconds\n", thread_num, time_spent);
       begin = clock();
 
       // abc auxilary vectors
@@ -405,7 +405,7 @@ void decomposeVelocities(
 
       // TIMING
       time_spent = (double)(clock() - begin) / CLOCKS_PER_SEC;
-      printf("TIMING %i - after abc: %f seconds", thread_num, time_spent);
+      printf("TIMING %i - after abc: %f seconds\n", thread_num, time_spent);
       begin = clock();
 
       if (m_rot_treat == 'a' || m_rot_treat == 'b') {
@@ -506,9 +506,9 @@ void decomposeVelocities(
              mol_omegas_sqrt_i_rot[3 * nblocksteps * i + nblocksteps * 1 + t],
              mol_omegas_sqrt_i_rot[3 * nblocksteps * i + nblocksteps * 2 + t]);
 
-      // TIMING
+      // TIMING 5 -> 17 - 55
       time_spent = (double)(clock() - begin) / CLOCKS_PER_SEC;
-      printf("TIMING %i - end mol: %f seconds", thread_num, time_spent);
+      printf("TIMING %i - end mol: %f seconds\n", thread_num, time_spent);
 
     }
 
