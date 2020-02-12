@@ -108,7 +108,7 @@ void decomposeVelocities(
       char m_rot_treat = moltype_rot_treat[m_moltype];
 
 #ifdef TIMING
-      // TIMING 0.5 μs -> 2.8 μs
+      // TIMING
       double time_spent = (omp_get_wtime() - begin);
       //printf("TIMING %i - mol_vars: %f seconds\n", thread_num, time_spent);
       timings[0] += time_spent;
@@ -158,7 +158,7 @@ void decomposeVelocities(
       }
 
 #ifdef TIMING
-      // TIMING 0.4 μs -> 2.3 μs  (without last checkpoint)
+      // TIMING
       time_spent = (omp_get_wtime() - begin);
       //printf("TIMING %i - pos_and_recomb: %f seconds\n", thread_num, time_spent);
       timings[2] += time_spent;
@@ -266,7 +266,7 @@ void decomposeVelocities(
       cblas_scopy(3, angular_momentum, 1, angular_velocity, 1);
 
 #ifdef TIMING
-      // TIMING 0.6 μs -> 3.9 μs
+      // TIMING
       time_spent = (omp_get_wtime() - begin);
       //printf("TIMING %i - up_ang_vel: %f seconds\n", thread_num, time_spent);
       timings[3] += time_spent;
@@ -360,7 +360,7 @@ void decomposeVelocities(
       }
 
 #ifdef TIMING
-      // TIMING 1.6 μs -> 12.4 μs
+      // TIMING
       time_spent = (omp_get_wtime() - begin);
       //printf("TIMING %i - bef_eigen: %f seconds\n", thread_num, time_spent);
       timings[4] += time_spent;
@@ -384,7 +384,6 @@ void decomposeVelocities(
              moments_of_inertia[1], moments_of_inertia[2]);
 
 #ifdef TIMING
-      // TIMING 2.6 μs -> 26.1 μs
       time_spent = (omp_get_wtime() - begin);
       //printf("TIMING %i - after_eigen: %f seconds\n", thread_num, time_spent);
       timings[5] += time_spent;
@@ -405,7 +404,7 @@ void decomposeVelocities(
       DPRINT("%f %f %f\n", eigenvectors[6], eigenvectors[7], eigenvectors[8]);
 
 #ifdef TIMING
-      // TIMING 2.6 μs -> 26.1 μs
+      // TIMING
       time_spent = (omp_get_wtime() - begin);
       //printf("TIMING %i - after_moi_save: %f seconds\n", thread_num, time_spent);
       timings[6] += time_spent;
@@ -452,7 +451,7 @@ void decomposeVelocities(
       DPRINT("%f %f %f\n", c[0], c[1], c[2]);
 
 #ifdef TIMING
-      // TIMING 0.7 μs -> 3.3 μs
+      // TIMING
       time_spent = (omp_get_wtime() - begin);
       //printf("TIMING %i - after_abc: %f seconds\n", thread_num, time_spent);
       timings[7] += time_spent;
@@ -558,7 +557,7 @@ void decomposeVelocities(
              mol_omegas_sqrt_i_rot[3 * nblocksteps * i + nblocksteps * 2 + t]);
 
 #ifdef TIMING
-      // TIMING 0.6 μs -> 3.2 μs
+      // TIMING
       time_spent = (omp_get_wtime() - begin);
       //printf("TIMING %i - end_mol: %f seconds\n", thread_num, time_spent);
       timings[8] += time_spent;
