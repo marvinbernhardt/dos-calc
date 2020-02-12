@@ -7,7 +7,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 #include <unistd.h>
 
 #ifdef DEBUG
@@ -42,7 +41,7 @@ void decomposeVelocities(
     float *atom_velocities_sqrt_m_rot, float *mol_block_moments_of_inertia) {
 
   // no dynamic teams since molecules all cause roughly the same work
-  omp_set_dynamic(0);
+  //omp_set_dynamic(0);
 
   // per-molecule arrays
   static float *positions;
@@ -72,6 +71,7 @@ void decomposeVelocities(
   }
 
   DPRINT("start time loop\n");
+#pragma omp parallel for
   for (unsigned long t = 0; t < nblocksteps; t++) {
     DPRINT("There are %zu atoms at step %lu. My box is: %f %f %f \n", natoms, t,
            block_box[3 * t + 0], box[3 * t + 1], box[3 * t + 2]);
@@ -84,12 +84,11 @@ void decomposeVelocities(
     // arrays for intermediate results to split up molecule loop
     // loop over molecules
 
-#pragma omp parallel for
     for (size_t i = 0; i < nmols; i++) {
 
 #ifdef TIMING
       // TIMING START
-      clock_t begin = clock();
+      double begin = omp_get_wtime();
       int thread_num = omp_get_thread_num();
 #endif
 
@@ -107,9 +106,9 @@ void decomposeVelocities(
 
 #ifdef TIMING
       // TIMING 0.5 μs -> 2.8 μs
-      double time_spent = (double)(clock() - begin) / CLOCKS_PER_SEC;
+      double time_spent = (omp_get_wtime() - begin);
       printf("TIMING %i - mol_vars: %f seconds\n", thread_num, time_spent);
-      begin = clock();
+      begin = omp_get_wtime();
 #endif
 
       // reading into threadprivate arrays
@@ -132,9 +131,9 @@ void decomposeVelocities(
 
 #ifdef TIMING
       // TIMING 
-      time_spent = (double)(clock() - begin) / CLOCKS_PER_SEC;
+      time_spent = (omp_get_wtime() - begin);
       printf("TIMING %i - bef_recomb: %f seconds\n", thread_num, time_spent);
-      begin = clock();
+      begin = omp_get_wtime();
 #endif
 
       // recombination
@@ -155,9 +154,9 @@ void decomposeVelocities(
 
 #ifdef TIMING
       // TIMING 0.4 μs -> 2.3 μs  (without last checkpoint)
-      time_spent = (double)(clock() - begin) / CLOCKS_PER_SEC;
+      time_spent = (omp_get_wtime() - begin);
       printf("TIMING %i - pos_and_recomb: %f seconds\n", thread_num, time_spent);
-      begin = clock();
+      begin = omp_get_wtime();
 #endif
 
       // single atoms
@@ -262,9 +261,9 @@ void decomposeVelocities(
 
 #ifdef TIMING
       // TIMING 0.6 μs -> 3.9 μs
-      time_spent = (double)(clock() - begin) / CLOCKS_PER_SEC;
+      time_spent = (omp_get_wtime() - begin);
       printf("TIMING %i - up_ang_vel: %f seconds\n", thread_num, time_spent);
-      begin = clock();
+      begin = omp_get_wtime();
 #endif
 
       // linear molecules
@@ -355,9 +354,9 @@ void decomposeVelocities(
 
 #ifdef TIMING
       // TIMING 1.6 μs -> 12.4 μs
-      time_spent = (double)(clock() - begin) / CLOCKS_PER_SEC;
+      time_spent = (omp_get_wtime() - begin);
       printf("TIMING %i - bef_eigen: %f seconds\n", thread_num, time_spent);
-      begin = clock();
+      begin = omp_get_wtime();
 #endif
 
       // calc moments of inertia and eigenvectors
@@ -391,9 +390,9 @@ void decomposeVelocities(
 
 #ifdef TIMING
       // TIMING 2.6 μs -> 26.1 μs
-      time_spent = (double)(clock() - begin) / CLOCKS_PER_SEC;
+      time_spent = (omp_get_wtime() - begin);
       printf("TIMING %i - after_eigen: %f seconds\n", thread_num, time_spent);
-      begin = clock();
+      begin = omp_get_wtime();
 #endif
 
       // abc auxilary vectors
@@ -437,9 +436,9 @@ void decomposeVelocities(
 
 #ifdef TIMING
       // TIMING 0.7 μs -> 3.3 μs
-      time_spent = (double)(clock() - begin) / CLOCKS_PER_SEC;
+      time_spent = (omp_get_wtime() - begin);
       printf("TIMING %i - after_abc: %f seconds\n", thread_num, time_spent);
-      begin = clock();
+      begin = omp_get_wtime();
 #endif
 
       if (m_rot_treat == 'a' || m_rot_treat == 'b') {
@@ -542,7 +541,7 @@ void decomposeVelocities(
 
 #ifdef TIMING
       // TIMING 0.6 μs -> 3.2 μs
-      time_spent = (double)(clock() - begin) / CLOCKS_PER_SEC;
+      time_spent = (omp_get_wtime() - begin);
       printf("TIMING %i - end_mol: %f seconds\n", thread_num, time_spent);
 #endif
 
