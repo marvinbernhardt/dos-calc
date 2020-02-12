@@ -18,7 +18,7 @@
 #define DPRINT(...)
 #endif
 
-//#define TIMING 1
+#define TIMING
 
 float sqrt_neg_zero(float number) {
   if (number < -0.001) {
@@ -52,7 +52,6 @@ void decomposeVelocities(
 #pragma omp threadprivate(positions, velocities, positions_rel, velocities_rot, m_atommasses)
 
   // largest molecule n_atoms
-  // TODO: A better way would be to loop over moltypes below, to optimize memory usage
   size_t mol_natoms_max = 1;
   for (size_t h = 0; h < nmoltypes; h++) {
     if (moltype_natomspermol[h] > mol_natoms_max) {
@@ -70,8 +69,12 @@ void decomposeVelocities(
     m_atommasses = calloc(mol_natoms_max, sizeof(float));
   }
 
+
+#ifdef TIMING
+  double timings[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0} ;
+#endif
+
   DPRINT("start time loop\n");
-#pragma omp parallel for
   for (unsigned long t = 0; t < nblocksteps; t++) {
     DPRINT("There are %zu atoms at step %lu. My box is: %f %f %f \n", natoms, t,
            block_box[3 * t + 0], box[3 * t + 1], box[3 * t + 2]);
@@ -84,12 +87,12 @@ void decomposeVelocities(
     // arrays for intermediate results to split up molecule loop
     // loop over molecules
 
+#pragma omp parallel for reduction(+:timings[:9])
     for (size_t i = 0; i < nmols; i++) {
 
 #ifdef TIMING
       // TIMING START
       double begin = omp_get_wtime();
-      int thread_num = omp_get_thread_num();
 #endif
 
       DPRINT("\ndoing molecule %zu\n", i);
@@ -107,7 +110,8 @@ void decomposeVelocities(
 #ifdef TIMING
       // TIMING 0.5 μs -> 2.8 μs
       double time_spent = (omp_get_wtime() - begin);
-      printf("TIMING %i - mol_vars: %f seconds\n", thread_num, time_spent);
+      //printf("TIMING %i - mol_vars: %f seconds\n", thread_num, time_spent);
+      timings[0] += time_spent;
       begin = omp_get_wtime();
 #endif
 
@@ -132,7 +136,8 @@ void decomposeVelocities(
 #ifdef TIMING
       // TIMING 
       time_spent = (omp_get_wtime() - begin);
-      printf("TIMING %i - bef_recomb: %f seconds\n", thread_num, time_spent);
+      //printf("TIMING %i - bef_recomb: %f seconds\n", thread_num, time_spent);
+      timings[1] += time_spent;
       begin = omp_get_wtime();
 #endif
 
@@ -155,7 +160,8 @@ void decomposeVelocities(
 #ifdef TIMING
       // TIMING 0.4 μs -> 2.3 μs  (without last checkpoint)
       time_spent = (omp_get_wtime() - begin);
-      printf("TIMING %i - pos_and_recomb: %f seconds\n", thread_num, time_spent);
+      //printf("TIMING %i - pos_and_recomb: %f seconds\n", thread_num, time_spent);
+      timings[2] += time_spent;
       begin = omp_get_wtime();
 #endif
 
@@ -262,7 +268,8 @@ void decomposeVelocities(
 #ifdef TIMING
       // TIMING 0.6 μs -> 3.9 μs
       time_spent = (omp_get_wtime() - begin);
-      printf("TIMING %i - up_ang_vel: %f seconds\n", thread_num, time_spent);
+      //printf("TIMING %i - up_ang_vel: %f seconds\n", thread_num, time_spent);
+      timings[3] += time_spent;
       begin = omp_get_wtime();
 #endif
 
@@ -355,7 +362,8 @@ void decomposeVelocities(
 #ifdef TIMING
       // TIMING 1.6 μs -> 12.4 μs
       time_spent = (omp_get_wtime() - begin);
-      printf("TIMING %i - bef_eigen: %f seconds\n", thread_num, time_spent);
+      //printf("TIMING %i - bef_eigen: %f seconds\n", thread_num, time_spent);
+      timings[4] += time_spent;
       begin = omp_get_wtime();
 #endif
 
@@ -375,6 +383,14 @@ void decomposeVelocities(
       DPRINT("moments of inertia: %8.4f%8.4f%8.4f\n", moments_of_inertia[0],
              moments_of_inertia[1], moments_of_inertia[2]);
 
+#ifdef TIMING
+      // TIMING 2.6 μs -> 26.1 μs
+      time_spent = (omp_get_wtime() - begin);
+      //printf("TIMING %i - after_eigen: %f seconds\n", thread_num, time_spent);
+      timings[5] += time_spent;
+      begin = omp_get_wtime();
+#endif
+
       // save moments of inertia for each molecule
       {
         for (size_t dim = 0; dim < 3; dim++) {
@@ -391,7 +407,8 @@ void decomposeVelocities(
 #ifdef TIMING
       // TIMING 2.6 μs -> 26.1 μs
       time_spent = (omp_get_wtime() - begin);
-      printf("TIMING %i - after_eigen: %f seconds\n", thread_num, time_spent);
+      //printf("TIMING %i - after_moi_save: %f seconds\n", thread_num, time_spent);
+      timings[6] += time_spent;
       begin = omp_get_wtime();
 #endif
 
@@ -437,7 +454,8 @@ void decomposeVelocities(
 #ifdef TIMING
       // TIMING 0.7 μs -> 3.3 μs
       time_spent = (omp_get_wtime() - begin);
-      printf("TIMING %i - after_abc: %f seconds\n", thread_num, time_spent);
+      //printf("TIMING %i - after_abc: %f seconds\n", thread_num, time_spent);
+      timings[7] += time_spent;
       begin = omp_get_wtime();
 #endif
 
@@ -542,10 +560,17 @@ void decomposeVelocities(
 #ifdef TIMING
       // TIMING 0.6 μs -> 3.2 μs
       time_spent = (omp_get_wtime() - begin);
-      printf("TIMING %i - end_mol: %f seconds\n", thread_num, time_spent);
+      //printf("TIMING %i - end_mol: %f seconds\n", thread_num, time_spent);
+      timings[8] += time_spent;
 #endif
 
     }
+
+#ifdef TIMING
+      for (int i=0; i<9; i++) {
+          printf("TIMING %d: %g μs per molecule\n", i, timings[i] / nmols * 1e6);
+      }
+#endif
 
     // print data for one frame
     DPRINT("molecules:\n");
