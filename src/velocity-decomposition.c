@@ -18,7 +18,7 @@
 #define DPRINT(...)
 #endif
 
-#define TIMING
+//#define TIMING
 
 float sqrt_neg_zero(float number) {
   if (number < -0.001) {
@@ -87,7 +87,11 @@ void decomposeVelocities(
     // arrays for intermediate results to split up molecule loop
     // loop over molecules
 
+#ifdef TIMING
 #pragma omp parallel for reduction(+:timings[:9])
+#else
+#pragma omp parallel for
+#endif
     for (size_t i = 0; i < nmols; i++) {
 
 #ifdef TIMING
