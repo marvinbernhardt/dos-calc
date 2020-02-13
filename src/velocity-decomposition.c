@@ -7,7 +7,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
 #ifdef DEBUG
 #define DPRINT(...)                                                            \
@@ -17,8 +16,6 @@
 #else
 #define DPRINT(...)
 #endif
-
-//#define TIMING
 
 float sqrt_neg_zero(float number) {
   if (number < -0.001) {
@@ -36,12 +33,13 @@ void decomposeVelocities(
     size_t *mol_firstatom, size_t *mol_natoms, size_t *mol_moltypenr,
     float **moltypes_atommasses, float *mol_mass, size_t *moltype_natomspermol,
     char *moltype_rot_treat, int **moltype_abc_indicators, bool no_pbc,
-    float *mol_velocities_sqrt_m_trn, // from here output
-    float *mol_omegas_sqrt_i_rot, float *atom_velocities_sqrt_m_vib,
-    float *atom_velocities_sqrt_m_rot, float *mol_block_moments_of_inertia) {
+    // output
+    float *mol_velocities_sqrt_m_trn, float *mol_omegas_sqrt_i_rot,
+    float *atom_velocities_sqrt_m_vib, float *atom_velocities_sqrt_m_rot,
+    float *mol_block_moments_of_inertia) {
 
   // no dynamic teams since molecules all cause roughly the same work
-  //omp_set_dynamic(0);
+  // omp_set_dynamic(0);
 
   // per-molecule arrays
   static float *positions;
@@ -49,7 +47,8 @@ void decomposeVelocities(
   static float *positions_rel;
   static float *velocities_rot;
   static float *m_atommasses;
-#pragma omp threadprivate(positions, velocities, positions_rel, velocities_rot, m_atommasses)
+#pragma omp threadprivate(positions, velocities, positions_rel,                \
+                          velocities_rot, m_atommasses)
 
   // largest molecule n_atoms
   size_t mol_natoms_max = 1;
@@ -69,15 +68,16 @@ void decomposeVelocities(
     m_atommasses = calloc(mol_natoms_max, sizeof(float));
   }
 
-
-#ifdef TIMING
-  double timings[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0} ;
-#endif
-
   DPRINT("start time loop\n");
   for (unsigned long t = 0; t < nblocksteps; t++) {
     DPRINT("There are %zu atoms at step %lu. My box is: %f %f %f \n", natoms, t,
            block_box[3 * t + 0], box[3 * t + 1], box[3 * t + 2]);
+
+#ifdef TIMING
+    double timings[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+    // mol_vars, end_mol, after_abc, after_moi_save, after_eigen, bef_eigen,
+    // up_ang_vel, pos_and_recomb, bef_recomb,
+#endif
 
     float box[3];
     box[0] = block_box[3 * t + 0];
@@ -88,14 +88,13 @@ void decomposeVelocities(
     // loop over molecules
 
 #ifdef TIMING
-#pragma omp parallel for reduction(+:timings[:9])
+#pragma omp parallel for reduction(+ : timings[:9])
 #else
 #pragma omp parallel for
 #endif
     for (size_t i = 0; i < nmols; i++) {
 
 #ifdef TIMING
-      // TIMING START
       double begin = omp_get_wtime();
 #endif
 
@@ -104,17 +103,16 @@ void decomposeVelocities(
       size_t m_natoms = mol_natoms[i];
       size_t m_moltype = mol_moltypenr[i];
       float m_mass = mol_mass[i];
-      //float *m_atommasses = moltypes_atommasses[m_moltype];
+      // float *m_atommasses = moltypes_atommasses[m_moltype];
       cblas_scopy(m_natoms, moltypes_atommasses[m_moltype], 1, m_atommasses, 1);
-      //int *m_abc_indicators = moltype_abc_indicators[m_moltype];
+      // int *m_abc_indicators = moltype_abc_indicators[m_moltype];
       int m_abc_indicators[4] = {0, 0, 0, 0};
-      memcpy(m_abc_indicators, moltype_abc_indicators[m_moltype], 4*sizeof(int));
+      memcpy(m_abc_indicators, moltype_abc_indicators[m_moltype],
+             4 * sizeof(int));
       char m_rot_treat = moltype_rot_treat[m_moltype];
 
 #ifdef TIMING
-      // TIMING
       double time_spent = (omp_get_wtime() - begin);
-      //printf("TIMING %i - mol_vars: %f seconds\n", thread_num, time_spent);
       timings[0] += time_spent;
       begin = omp_get_wtime();
 #endif
@@ -138,9 +136,7 @@ void decomposeVelocities(
       }
 
 #ifdef TIMING
-      // TIMING 
       time_spent = (omp_get_wtime() - begin);
-      //printf("TIMING %i - bef_recomb: %f seconds\n", thread_num, time_spent);
       timings[1] += time_spent;
       begin = omp_get_wtime();
 #endif
@@ -162,9 +158,7 @@ void decomposeVelocities(
       }
 
 #ifdef TIMING
-      // TIMING
       time_spent = (omp_get_wtime() - begin);
-      //printf("TIMING %i - pos_and_recomb: %f seconds\n", thread_num, time_spent);
       timings[2] += time_spent;
       begin = omp_get_wtime();
 #endif
@@ -270,9 +264,7 @@ void decomposeVelocities(
       cblas_scopy(3, angular_momentum, 1, angular_velocity, 1);
 
 #ifdef TIMING
-      // TIMING
       time_spent = (omp_get_wtime() - begin);
-      //printf("TIMING %i - up_ang_vel: %f seconds\n", thread_num, time_spent);
       timings[3] += time_spent;
       begin = omp_get_wtime();
 #endif
@@ -364,9 +356,7 @@ void decomposeVelocities(
       }
 
 #ifdef TIMING
-      // TIMING
       time_spent = (omp_get_wtime() - begin);
-      //printf("TIMING %i - bef_eigen: %f seconds\n", thread_num, time_spent);
       timings[4] += time_spent;
       begin = omp_get_wtime();
 #endif
@@ -389,7 +379,6 @@ void decomposeVelocities(
 
 #ifdef TIMING
       time_spent = (omp_get_wtime() - begin);
-      //printf("TIMING %i - after_eigen: %f seconds\n", thread_num, time_spent);
       timings[5] += time_spent;
       begin = omp_get_wtime();
 #endif
@@ -408,9 +397,7 @@ void decomposeVelocities(
       DPRINT("%f %f %f\n", eigenvectors[6], eigenvectors[7], eigenvectors[8]);
 
 #ifdef TIMING
-      // TIMING
       time_spent = (omp_get_wtime() - begin);
-      //printf("TIMING %i - after_moi_save: %f seconds\n", thread_num, time_spent);
       timings[6] += time_spent;
       begin = omp_get_wtime();
 #endif
@@ -455,9 +442,7 @@ void decomposeVelocities(
       DPRINT("%f %f %f\n", c[0], c[1], c[2]);
 
 #ifdef TIMING
-      // TIMING
       time_spent = (omp_get_wtime() - begin);
-      //printf("TIMING %i - after_abc: %f seconds\n", thread_num, time_spent);
       timings[7] += time_spent;
       begin = omp_get_wtime();
 #endif
@@ -561,18 +546,15 @@ void decomposeVelocities(
              mol_omegas_sqrt_i_rot[3 * nblocksteps * i + nblocksteps * 2 + t]);
 
 #ifdef TIMING
-      // TIMING
       time_spent = (omp_get_wtime() - begin);
-      //printf("TIMING %i - end_mol: %f seconds\n", thread_num, time_spent);
       timings[8] += time_spent;
 #endif
-
     }
 
 #ifdef TIMING
-      for (int i=0; i<9; i++) {
-          printf("TIMING %d: %g μs per molecule\n", i, timings[i] / nmols * 1e6);
-      }
+    for (int i = 0; i < 9; i++) {
+      printf("TIMING %d: %g μs per molecule\n", i, timings[i] / nmols * 1e6);
+    }
 #endif
 
     // print data for one frame
