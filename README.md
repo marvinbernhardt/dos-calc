@@ -4,10 +4,10 @@ Calculation of translational, rotational and vibrational density of states
 
 ## Dependencies
 
-- CBLAS
+- CBLAS (openblas can be problematic in combination with OPENMP)
 - LAPACKE (Do not use 3.9! there is a [bug that causes wrong eigenvectors](https://github.com/Reference-LAPACK/lapack/issues/379). 3.8 is fine.)
 - FFTW
-- [Chemfiles](https://chemfiles.org) (0.9 does not yet contain .trr reader, but master does)
+- [Chemfiles](https://chemfiles.org) (0.9 does not contain .trr reader, master does)
 - [cJSON](https://github.com/DaveGamble/cJSON) 
 
 ## Installation
