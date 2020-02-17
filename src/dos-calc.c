@@ -9,6 +9,7 @@
 #include <cblas.h>
 #include <chemfiles.h>
 #include <math.h>
+#include <omp.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -85,6 +86,10 @@ static struct argp argp = {options, parse_opt, args_doc, doc, 0, 0, 0};
 int main(int argc, char *argv[]) {
   // command line arguments
   struct arguments arguments;
+
+  // TIMING: timings array (parse, read_trj, vel_decomp, fft, write)
+  double timings[5] = {0, 0, 0, 0, 0};
+  double begin = omp_get_wtime();
 
   // Default values.
   arguments.verbosity = false;
@@ -270,6 +275,10 @@ int main(int argc, char *argv[]) {
   float *moltypes_samples_moments_of_inertia =
       calloc(nmoltypes * nsamples * 3, sizeof(float));
 
+  // TIMING: parse end
+  timings[0] += omp_get_wtime() - begin;
+  begin = omp_get_wtime();
+
   // start samples loop
   verbPrintf(verbosity, "going through %zu samples\n", nsamples);
   for (size_t sample = 0; sample < nsamples; sample++) {
@@ -288,6 +297,10 @@ int main(int argc, char *argv[]) {
       float *block_box = calloc(3 * nblocksteps, sizeof(float));
       readTrajectory(file, nblocksteps, natoms, block_pos, block_vel,
                      block_box);
+
+      // TIMING: read_trj end
+      timings[1] += omp_get_wtime() - begin;
+      begin = omp_get_wtime();
 
       verbPrintf(verbosity, "start decomposition\n");
       float *mol_velocities_sqrt_m_trn =
@@ -309,6 +322,10 @@ int main(int argc, char *argv[]) {
           atom_velocities_sqrt_m_vib, atom_velocities_sqrt_m_rot,
           mol_block_moments_of_inertia);
 
+      // TIMING: vel_decomp end
+      timings[2] += omp_get_wtime() - begin;
+      begin = omp_get_wtime();
+
       verbPrintf(verbosity, "start DoS calculation (FFT)\n");
       dos_calculation(nmoltypes, nblocksteps, nfrequencies, moltypes_firstmol,
                       moltypes_firstatom, moltypes_nmols, moltypes_natomspermol,
@@ -329,6 +346,10 @@ int main(int argc, char *argv[]) {
           }
         }
       }
+
+      // TIMING: fft end
+      timings[3] += omp_get_wtime() - begin;
+      begin = omp_get_wtime();
 
       // free block stuff
       free(block_pos);
@@ -410,6 +431,17 @@ int main(int argc, char *argv[]) {
   free(mols_natoms);
   free(mols_mass);
   free(mols_firstatom);
+
+  // TIMING: write end
+  timings[4] += omp_get_wtime() - begin;
+  begin = omp_get_wtime();
+
+  verbPrintf(arguments.verbosity, "timings in seconds:\n", timings[0]);
+  verbPrintf(arguments.verbosity, "parsing input: %g\n", timings[0]);
+  verbPrintf(arguments.verbosity, "reading trajectory: %g\n", timings[1]);
+  verbPrintf(arguments.verbosity, "velocity decomposition: %g\n", timings[2]);
+  verbPrintf(arguments.verbosity, "fast Fourier transform: %g\n", timings[3]);
+  verbPrintf(arguments.verbosity, "writing output: %g\n", timings[4]);
 
   return 0;
 }
