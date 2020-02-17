@@ -434,7 +434,6 @@ int main(int argc, char *argv[]) {
 
   // TIMING: write end
   timings[4] += omp_get_wtime() - begin;
-  begin = omp_get_wtime();
 
   verbPrintf(arguments.verbosity, "timings in seconds:\n", timings[0]);
   verbPrintf(arguments.verbosity, "parsing input: %g\n", timings[0]);
