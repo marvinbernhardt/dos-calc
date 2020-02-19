@@ -320,7 +320,7 @@ void decomposeVelocities(
              moments_of_inertia[1], moments_of_inertia[2]);
 
       // save moments of inertia for each molecule
-      {
+      if (m_rot_treat != 'a' && m_rot_treat != 'b') {
         for (size_t dim = 0; dim < 3; dim++) {
           mol_block_moments_of_inertia[3 * nblocksteps * i + nblocksteps * dim +
                                        t] += moments_of_inertia[dim];
@@ -429,7 +429,12 @@ void decomposeVelocities(
             mol_omegas_sqrt_i_rot[3 * nblocksteps * i + nblocksteps * dim + t] =
                 angular_momentum_abc[dim] / sqrt(moi_tensor_abc[3 * dim + dim]);
           }
+          // save moments of inertia for each molecule
+          mol_block_moments_of_inertia[3 * nblocksteps * i + nblocksteps * dim +
+                                       t] += moi_tensor_abc[3 * dim + dim];
         }
+
+        continue;
       }
 
       // check if eigenvector points in same general direction as abc

@@ -118,13 +118,15 @@ Depending on the point group of the molecule the following needs to be defined:
 - For molecules where the axis can swap order by vibration, for example ammonia, set `"rot_treat": "a"` and `"abc_indicators": [1, 2, 0 -1]`.
   Ammonia has atoms N H H H. Therefore 1 2 defines vector a between two hydrogens. 0 -1 defines vector b' from the nitrogen atom to the COM and thereby along the symmetry axis.
   One can not use the actual principal axes of rotation of the molecule, because they swap order during vibration.
-  The rotational DoS is calculated be with regard to a, b and c.
+  The rotational DoS is calculated be with regard to sqrt(I_l) * ω_l where l is one of a, b and c.
+  The setting `"rot_treat": "b"` does the same but Fourier transforms L_l / sqrt(I_l).
+  Also the moments of inertia are given with respect to those axes.
   Note, that this does yield unusable results, if a, b and c are not close to the actual principal axes.
 - For other molecules, for example water, set `"rot_treat": "f"` and `"abc_indicators": [1, 2, 0 -1]`.
   Water has atoms O H H. Therefore 1 2 defines vector a between the two hydrogens. 0 -1 defines vector b' along the symmetry axis.
   The rotational DoS is calculated with regard to the actual principal axes of rotation.
   The vectors a, b and c are used to ensure, that the actual axis derived from the moment of inertia tensor, always point in the same direction.
-  This will likely be the correct choice for most molecules, especially larger ones.
+  This will likely be the correct choice for most molecules, especially larger ones without symmetries.
 - If one does not want any velocity separation `"rot_treat": "u"` can be used and the unseparated DoS is written to `vib_{x,y,z}`.
 
 ### Cross spectrum
@@ -196,7 +198,8 @@ A verbal (and therefore not exact) description of the DoS components:
 - `trn_x` is the power spectrum of the x component of the velocities of the molecules center of mass translational motion.
 - `rot_x` is the power spectrum of the x component of the velocities of the atoms due to molecular rotational motion.
 - `vib_x` is the power spectrum of the x component of the velocities of the atoms due to molecular vibrational motion.
-- `rot_a` is the power spectrum of the angular velocity times sqrt(I_a) around principal axis 'a' of each molecule.
+- `rot_x` is the power spectrum of the angular velocity times square root of the moment of inertia, both with respect to lab axis 'x'.
+- `roto_a` is the power spectrum of the angular velocity times square root of the moment of inertia, both with respect to axis 'a' which is either a principal axis or a user defined axis.
 
 ## Units
 
