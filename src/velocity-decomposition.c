@@ -35,7 +35,8 @@ void decomposeVelocities(
     char *moltype_rot_treat, int **moltype_abc_indicators, bool no_pbc,
     float *mol_velocities_sqrt_m_trn, // from here output
     float *mol_omegas_sqrt_i_rot, float *atom_velocities_sqrt_m_vib,
-    float *atom_velocities_sqrt_m_rot, float *mol_block_moments_of_inertia) {
+    float *atom_velocities_sqrt_m_rot, float *mol_block_moments_of_inertia,
+    float *mol_block_moments_of_inertia_squared) {
 
   // no dynamic teams since molecules all cause roughly the same work
   omp_set_dynamic(0);
@@ -295,8 +296,9 @@ void decomposeVelocities(
         {
           for (size_t dim = 0; dim < 3; dim++) {
             mol_block_moments_of_inertia[3 * nblocksteps * i +
-                                         nblocksteps * dim + t] +=
-                moi_tensor[3 * dim + dim];
+                                         nblocksteps * dim + t] += moi_tensor[3 * dim + dim];
+            mol_block_moments_of_inertia_squared[3 * nblocksteps * i +
+                                         nblocksteps * dim + t] += powf(moi_tensor[3 * dim + dim], 2.0);
           }
         }
 
@@ -324,6 +326,8 @@ void decomposeVelocities(
         for (size_t dim = 0; dim < 3; dim++) {
           mol_block_moments_of_inertia[3 * nblocksteps * i + nblocksteps * dim +
                                        t] += moments_of_inertia[dim];
+          mol_block_moments_of_inertia_squared[3 * nblocksteps * i + nblocksteps * dim +
+                                       t] += powf(moments_of_inertia[dim], 2.0);
         }
       }
 
@@ -432,6 +436,8 @@ void decomposeVelocities(
           // save moments of inertia for each molecule
           mol_block_moments_of_inertia[3 * nblocksteps * i + nblocksteps * dim +
                                        t] += moi_tensor_abc[3 * dim + dim];
+          mol_block_moments_of_inertia_squared[3 * nblocksteps * i + nblocksteps * dim +
+                                       t] += powf(moi_tensor_abc[3 * dim + dim], 2.0);
         }
 
         continue;

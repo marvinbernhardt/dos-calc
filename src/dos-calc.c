@@ -271,8 +271,12 @@ int main(int argc, char *argv[]) {
       calloc(nmoltypes * ndos * nsamples * nfrequencies, sizeof(float));
   float *cross_spectra_samples =
       calloc(ncross_spectra * nsamples * nfrequencies, sizeof(float));
-  // moments of inertia
+  // moments of inertia and its std. deviation
   float *moltypes_samples_moments_of_inertia =
+      calloc(nmoltypes * nsamples * 3, sizeof(float));
+  float *moltypes_samples_moments_of_inertia_squared =
+      calloc(nmoltypes * nsamples * 3, sizeof(float));
+  float *moltypes_samples_moments_of_inertia_std =
       calloc(nmoltypes * nsamples * 3, sizeof(float));
 
   // TIMING: parse end
@@ -285,6 +289,7 @@ int main(int argc, char *argv[]) {
     verbPrintf(verbosity, "now doing sample %zu\n", sample);
 
     float *mol_moments_of_inertia = calloc(nmols * 3, sizeof(float));
+    float *mol_moments_of_inertia_squared = calloc(nmols * 3, sizeof(float));
 
     // start block loop
     verbPrintf(verbosity, "going through %zu blocks\n", nblocks);
@@ -313,6 +318,8 @@ int main(int argc, char *argv[]) {
           calloc(natoms * 3 * nblocksteps, sizeof(float));
       float *mol_block_moments_of_inertia =
           calloc(nmols * 3 * nblocksteps, sizeof(float));
+      float *mol_block_moments_of_inertia_squared =
+          calloc(nmols * 3 * nblocksteps, sizeof(float));
       decomposeVelocities(
           block_pos, block_vel, block_box, nblocksteps, natoms, nmols,
           nmoltypes, mols_firstatom, mols_natoms, mols_moltypenr,
@@ -320,7 +327,7 @@ int main(int argc, char *argv[]) {
           moltypes_rot_treat, moltypes_abc_indicators, arguments.no_pbc,
           mol_velocities_sqrt_m_trn, mol_omegas_sqrt_i_rot,
           atom_velocities_sqrt_m_vib, atom_velocities_sqrt_m_rot,
-          mol_block_moments_of_inertia);
+          mol_block_moments_of_inertia, mol_block_moments_of_inertia_squared);
 
       // TIMING: vel_decomp end
       timings[2] += omp_get_wtime() - begin;
@@ -342,6 +349,9 @@ int main(int argc, char *argv[]) {
           for (size_t abc = 0; abc < 3; abc++) {
             mol_moments_of_inertia[3 * i + abc] +=
                 mol_block_moments_of_inertia[3 * nblocksteps * i +
+                                             nblocksteps * abc + t];
+            mol_moments_of_inertia_squared[3 * i + abc] +=
+                mol_block_moments_of_inertia_squared[3 * nblocksteps * i +
                                              nblocksteps * abc + t];
           }
         }
@@ -366,6 +376,8 @@ int main(int argc, char *argv[]) {
     // divide moi by number of blocks and number of blocksteps
     cblas_sscal(nmols * 3, 1.0 / (float)nblocks / (float)nblocksteps,
                 mol_moments_of_inertia, 1);
+    cblas_sscal(nmols * 3, 1.0 / (float)nblocks / (float)nblocksteps,
+                mol_moments_of_inertia_squared, 1);
 
     // moi summation over all molecules (this sample)
     for (size_t i = 0; i < nmols; i++) {
@@ -373,6 +385,8 @@ int main(int argc, char *argv[]) {
         size_t moi_index = +mols_moltypenr[i] * nsamples * 3 + sample * 3 + abc;
         moltypes_samples_moments_of_inertia[moi_index] +=
             mol_moments_of_inertia[3 * i + abc];
+        moltypes_samples_moments_of_inertia_squared[moi_index] +=
+            mol_moments_of_inertia_squared[3 * i + abc];
       }
     }
     free(mol_moments_of_inertia);
@@ -384,6 +398,17 @@ int main(int argc, char *argv[]) {
   for (size_t h = 0; h < nmoltypes; h++) {
     cblas_sscal(3 * nsamples, 1.0 / (float)moltypes_nmols[h],
                 &moltypes_samples_moments_of_inertia[h * nsamples * 3], 1);
+  }
+  // divide moi squares by nmols
+  for (size_t h = 0; h < nmoltypes; h++) {
+    cblas_sscal(3 * nsamples, 1.0 / (float)moltypes_nmols[h],
+                &moltypes_samples_moments_of_inertia_squared[h * nsamples * 3], 1);
+  }
+  // calculate std. deviation of moi
+  for (size_t q = 0; q < nmoltypes * nsamples * 3; q++) {
+      moltypes_samples_moments_of_inertia_std[q] = sqrtf(
+              moltypes_samples_moments_of_inertia_squared[q]
+              - powf(moltypes_samples_moments_of_inertia[q], 2.0));
   }
 
   // normalize dos
@@ -407,7 +432,8 @@ int main(int argc, char *argv[]) {
   result = write_dos(arguments.outfile, nsamples, nblocksteps, nfrequencies,
                      framelength, ndos, ncross_spectra, dos_names, nmoltypes,
                      moltypes_dos_samples, cross_spectra_samples,
-                     moltypes_samples_moments_of_inertia, cross_spectra_def);
+                     moltypes_samples_moments_of_inertia, moltypes_samples_moments_of_inertia_std,
+                     cross_spectra_def);
   if (result != 0) {
     fprintf(stderr, "ERROR: Could not write json to file.\n");
     return 1;

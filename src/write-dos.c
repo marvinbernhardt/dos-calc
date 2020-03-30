@@ -19,6 +19,7 @@ int write_dos(const char *dos_file, size_t nsamples, unsigned long nblocksteps,
               size_t ncross_spectra, const char **dos_names, size_t nmoltypes,
               float *moltypes_dos_samples, float *moltypes_dos_cross_samples,
               float *moltypes_samples_moments_of_inertia,
+              float *moltypes_samples_moments_of_inertia_std,
               cross_spectrum_def *cross_spectra_def) {
 
   cJSON *root = cJSON_CreateObject();
@@ -103,6 +104,30 @@ int write_dos(const char *dos_file, size_t nsamples, unsigned long nblocksteps,
         if (number == NULL)
           return 1;
         cJSON_AddItemToArray(this_moi, number);
+      }
+    }
+    // moi_std array
+    cJSON *moi_std = cJSON_AddArrayToObject(moltype, "moments_of_inertia_std");
+    if (moi_std == NULL)
+      return 1;
+
+    // fill moi_std array
+    for (size_t sample = 0; sample < nsamples; sample++) {
+      // this_moi array
+      cJSON *this_moi_std = cJSON_CreateArray();
+      if (this_moi_std == NULL)
+        return 1;
+      cJSON_AddItemToArray(moi_std, this_moi_std);
+
+      // fill this_moi_std array
+      for (size_t abc = 0; abc < 3; abc++) {
+        size_t index = h * nsamples * 3 + sample * 3 + abc;
+        // single number
+        cJSON *number =
+            cJSON_CreateNumber(moltypes_samples_moments_of_inertia_std[index]);
+        if (number == NULL)
+          return 1;
+        cJSON_AddItemToArray(this_moi_std, number);
       }
     }
   }
