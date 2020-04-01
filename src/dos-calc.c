@@ -31,6 +31,8 @@ static struct argp_option options[] = {
      "Lenght of each frame in trajectory (in ps). Taken from trajectory if "
      "possible, but can be overwritten with this argument.",
      0},
+    {"skip-frames", 's', "SF", 0,
+     "Number of frames to be skipped at the beginning of the trajectory.", 0},
     {0}};
 
 struct arguments {
@@ -39,6 +41,7 @@ struct arguments {
   bool no_pbc;
   char *outfile;
   float framelength;
+  unsigned long long skip_frames;
 };
 
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
@@ -58,6 +61,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
     break;
   case 'f':
     arguments->framelength = strtof(arg, NULL);
+    break;
+  case 's':
+    arguments->skip_frames = strtoull(arg, NULL, 10);
     break;
 
   case ARGP_KEY_ARG:
@@ -96,6 +102,7 @@ int main(int argc, char *argv[]) {
   arguments.no_pbc = false;
   arguments.outfile = "dos.json";
   arguments.framelength = 0.0;
+  arguments.skip_frames = 0;
 
   // parse command line arguments
   argp_parse(&argp, argc, argv, 0, 0, &arguments);
@@ -254,12 +261,17 @@ int main(int argc, char *argv[]) {
   } else {
     framelength = arguments.framelength;
   }
-  chfl_free(frame);
   chfl_trajectory_close(file);
   verbPrintf(verbosity, "framelength is %f ps\n", framelength);
 
   // open file for calculations
   file = chfl_trajectory_open(trajectory_file, 'r');
+
+  // skip frames
+  verbPrintf(verbosity, "skipping %llu frames\n", arguments.skip_frames);
+  for (size_t t = 0; t < arguments.skip_frames; t++) {
+    chfl_trajectory_read(file, frame);
+  }
 
   // output arrays
   const size_t ndos = 12;
@@ -352,7 +364,7 @@ int main(int argc, char *argv[]) {
                                              nblocksteps * abc + t];
             mol_moments_of_inertia_squared[3 * i + abc] +=
                 mol_block_moments_of_inertia_squared[3 * nblocksteps * i +
-                                             nblocksteps * abc + t];
+                                                     nblocksteps * abc + t];
           }
         }
       }
@@ -402,13 +414,14 @@ int main(int argc, char *argv[]) {
   // divide moi squares by nmols
   for (size_t h = 0; h < nmoltypes; h++) {
     cblas_sscal(3 * nsamples, 1.0 / (float)moltypes_nmols[h],
-                &moltypes_samples_moments_of_inertia_squared[h * nsamples * 3], 1);
+                &moltypes_samples_moments_of_inertia_squared[h * nsamples * 3],
+                1);
   }
   // calculate std. deviation of moi
   for (size_t q = 0; q < nmoltypes * nsamples * 3; q++) {
-      moltypes_samples_moments_of_inertia_std[q] = sqrtf(
-              moltypes_samples_moments_of_inertia_squared[q]
-              - powf(moltypes_samples_moments_of_inertia[q], 2.0));
+    moltypes_samples_moments_of_inertia_std[q] =
+        sqrtf(moltypes_samples_moments_of_inertia_squared[q] -
+              powf(moltypes_samples_moments_of_inertia[q], 2.0));
   }
 
   // normalize dos
@@ -429,11 +442,11 @@ int main(int argc, char *argv[]) {
               &cross_spectra_samples[0], 1);
 
   // write dos.json
-  result = write_dos(arguments.outfile, nsamples, nblocksteps, nfrequencies,
-                     framelength, ndos, ncross_spectra, dos_names, nmoltypes,
-                     moltypes_dos_samples, cross_spectra_samples,
-                     moltypes_samples_moments_of_inertia, moltypes_samples_moments_of_inertia_std,
-                     cross_spectra_def);
+  result = write_dos(
+      arguments.outfile, nsamples, nblocksteps, nfrequencies, framelength, ndos,
+      ncross_spectra, dos_names, nmoltypes, moltypes_dos_samples,
+      cross_spectra_samples, moltypes_samples_moments_of_inertia,
+      moltypes_samples_moments_of_inertia_std, cross_spectra_def);
   if (result != 0) {
     fprintf(stderr, "ERROR: Could not write json to file.\n");
     return 1;
@@ -457,6 +470,7 @@ int main(int argc, char *argv[]) {
   free(mols_natoms);
   free(mols_mass);
   free(mols_firstatom);
+  chfl_free(frame);
 
   // TIMING: write end
   timings[4] += omp_get_wtime() - begin;
