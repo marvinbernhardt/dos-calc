@@ -88,7 +88,7 @@ def _plot_spectra(
             else:
                 prefactor = 2 / K_GRO / temperature
                 print(
-                    f"integral {dos_name} / (1/2 k T): {prefactor*integral:.4E}"
+                    f"integral {dos_name} / (1/2 k T): {prefactor*integral:.4f}"
                 )
             # plot
             if show_components:
