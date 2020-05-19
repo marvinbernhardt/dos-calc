@@ -19,7 +19,8 @@
 
 float sqrt_neg_zero(float number) {
   if (number < -0.001) {
-    printf("angular_momentum and angular_velocity too different!\n");
+    printf("Trying to take square-root of negative number!\n");
+    printf("%f\n", number);
     exit(0);
   } else if (number < 0)
     return 0;
@@ -68,7 +69,7 @@ void decomposeVelocities(
   DPRINT("start time loop\n");
   for (unsigned long t = 0; t < nblocksteps; t++) {
     DPRINT("There are %zu atoms at step %lu. My box is: %f %f %f \n", natoms, t,
-           block_box[3 * t + 0], box[3 * t + 1], box[3 * t + 2]);
+           block_box[3 * t + 0], block_box[3 * t + 1], block_box[3 * t + 2]);
 
     // arrays for intermediate results to split up molecule loop
     // loop over molecules

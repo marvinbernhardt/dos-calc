@@ -382,6 +382,7 @@ int main(int argc, char *argv[]) {
       free(atom_velocities_sqrt_m_vib);
       free(atom_velocities_sqrt_m_rot);
       free(mol_block_moments_of_inertia);
+      free(mol_block_moments_of_inertia_squared);
     }
     verbPrintf(verbosity, "finished all blocks\n");
 
@@ -402,6 +403,7 @@ int main(int argc, char *argv[]) {
       }
     }
     free(mol_moments_of_inertia);
+    free(mol_moments_of_inertia_squared);
   }
   verbPrintf(verbosity, "finished all samples\n");
   chfl_trajectory_close(file);
@@ -456,6 +458,8 @@ int main(int argc, char *argv[]) {
   free(moltypes_dos_samples);
   free(cross_spectra_samples);
   free(moltypes_samples_moments_of_inertia);
+  free(moltypes_samples_moments_of_inertia_squared);
+  free(moltypes_samples_moments_of_inertia_std);
 
   // free input arrays
   free_dosparams_arrays(nmoltypes, &moltypes_nmols, &moltypes_natomspermol,
