@@ -1,7 +1,7 @@
 #include "fft.c"
 #include "parse-dosparams.c"
-#include "read-trajectory.c"
 #include "structs.h"
+#include "trajectory-functions.c"
 #include "velocity-decomposition.c"
 #include "verbPrintf.c"
 #include "write-dos.c"
@@ -179,83 +179,52 @@ int main(int argc, char *argv[]) {
           &mols_mass,
           &mols_firstatom);
 
-  // open file once for tests
-  verbPrintf(verbosity, "starting with file %s\n", trajectory_file);
+  // open trajectory and one frame for tests
+  verbPrintf(verbosity, "testing file %s\n", trajectory_file);
   CHFL_TRAJECTORY *file = chfl_trajectory_open(trajectory_file, 'r');
   CHFL_FRAME *frame = chfl_frame();
   int result = chfl_trajectory_read(file, frame);
-
   if ((file == NULL) || (result != CHFL_SUCCESS)) {
     fprintf(stderr, "ERROR: Reading trajectory failed.\n");
     return 1;
   }
-
   // check for number of atoms
-  uint64_t natoms_traj = 0;
-  chfl_vector3d *positions = NULL;
-  chfl_frame_positions(frame, &positions, &natoms_traj);
-  if (natoms_traj < natoms) {
-    fprintf(stderr, "ERROR: The topology you give has more atoms than first "
-                    "frame of the trajectory\n");
-    return 1;
-  } else if (natoms_traj > natoms) {
-    fprintf(stderr, "WARNING: The topology you give has less atoms than first "
-                    "frame of the trajectory\n");
-    fprintf(stderr, "         Some atoms are ignored in every frame\n");
-  }
-
+  check_frame_natoms(frame, natoms);
   // check for velocities
-  bool has_velocities = false;
-  chfl_frame_has_velocities(frame, &has_velocities);
-  if (!has_velocities) {
-    fprintf(stderr, "ERROR: No velocities in trajectory.\n");
-    return 1;
-  }
-
+  check_frame_velocities(frame);
   // check for orthorombic box
-  CHFL_CELL *cell = chfl_cell_from_frame(frame);
-  chfl_cellshape shape;
-  chfl_cell_shape(cell, &shape);
-  if ((arguments.no_pbc == false) && (shape != CHFL_CELL_ORTHORHOMBIC)) {
-    fprintf(stderr,
-            "ERROR: can not do recombination on non orthorombic box.\n");
-    return 1;
-  }
-  chfl_free(cell);
-
+  check_frame_orthorombic_box(frame, arguments.no_pbc);
   // get framelength
   float framelength;
   if (arguments.framelength == 0.0) {
-    double time0, time1;
-    int result0, result1;
-    // get time0
-    CHFL_PROPERTY *property = chfl_frame_get_property(frame, "time");
-    result0 = chfl_property_get_double(property, &time0);
-    verbPrintf(verbosity, "time of first frame is %f ps\n", time0);
-    chfl_free(property);
-    // get time1
-    chfl_trajectory_read(file, frame);
-    property = chfl_frame_get_property(frame, "time");
-    result1 = chfl_property_get_double(property, &time1);
-    verbPrintf(verbosity, "time of second frame is %f ps\n", time1);
-    chfl_free(property);
-    framelength = (float)(time1 - time0);
-    if ((framelength == 0.0) || (result0 != CHFL_SUCCESS) ||
-        (result1 != CHFL_SUCCESS)) {
-      fprintf(stderr,
-              "ERROR: Reading framelength from trajectory failed. You can "
-              "provide the framelength with command line arguments.\n");
-      return 1;
-    }
+      framelength = get_traj_framelength(file, frame);
   } else {
-    framelength = arguments.framelength;
+      framelength = arguments.framelength;
   }
   chfl_trajectory_close(file);
   verbPrintf(verbosity, "framelength is %f ps\n", framelength);
 
-  // open file for calculations
-  file = chfl_trajectory_open(trajectory_file, 'r');
+  // open and test refconf file
+  float *refconf_pos = calloc(natoms * 3, sizeof(float));
+  float *refconf_box = calloc(3, sizeof(float));
+  if (refconf_file) {
+      verbPrintf(verbosity, "start reading refconf\n");
+      file = chfl_trajectory_open(refconf_file, 'r');
+      int result = chfl_trajectory_read(file, frame);
+      if ((file == NULL) || (result != CHFL_SUCCESS)) {
+          fprintf(stderr, "ERROR: Reading refconf file failed.\n");
+          return 1;
+      }
+      // check for number of atoms
+      check_frame_natoms(frame, natoms);
+      // check for orthorombic box
+      check_frame_orthorombic_box(frame, arguments.no_pbc);
+      get_frame_pos_box(frame, natoms, refconf_pos, refconf_box);
+      chfl_trajectory_close(file);
+  }
 
+  // open trajectory for calculations
+  file = chfl_trajectory_open(trajectory_file, 'r');
   // skip frames
   verbPrintf(verbosity, "skipping %llu frames\n", arguments.skip_frames);
   for (size_t t = 0; t < arguments.skip_frames; t++) {
@@ -264,9 +233,9 @@ int main(int argc, char *argv[]) {
 
   // output arrays
   const size_t ndos = 12;
-  const char *dos_names[12] = {"trn_x", "trn_y",  "trn_z",  "rot_x",
-                               "rot_y", "rot_z",  "vib_x",  "vib_y",
-                               "vib_z", "roto_a", "roto_b", "roto_c"};
+  const char *dos_names[12] = {
+      "trn_x", "trn_y",  "trn_z", "rot_x", "rot_y", "rot_z", 
+      "vib_x",  "vib_y", "vib_z", "roto_a", "roto_b", "roto_c"};
   // order is: trn_xyz, rot_xyz, vib_xyz, rot_omega_abc
   float *moltypes_dos_samples =
       calloc(nmoltypes * ndos * nsamples * nfrequencies, sizeof(float));
@@ -301,8 +270,8 @@ int main(int argc, char *argv[]) {
       float *block_pos = calloc(natoms * 3 * nblocksteps, sizeof(float));
       float *block_vel = calloc(natoms * 3 * nblocksteps, sizeof(float));
       float *block_box = calloc(3 * nblocksteps, sizeof(float));
-      readTrajectory(file, nblocksteps, natoms, block_pos, block_vel,
-                     block_box);
+      get_traj_pos_vel_box(file, nblocksteps, natoms, block_pos, block_vel,
+                       block_box);
 
       // TIMING: read_trj end
       timings[1] += omp_get_wtime() - begin;
