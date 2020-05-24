@@ -33,6 +33,8 @@ static struct argp_option options[] = {
      0},
     {"skip-frames", 's', "SF", 0,
      "Number of frames to be skipped at the beginning of the trajectory.", 0},
+    {"refconf", 'e', "FILE", 0,
+     "When using Eckart frame, take reference configuration from this file", 0},
     {0}};
 
 struct arguments {
@@ -42,6 +44,7 @@ struct arguments {
   char *outfile;
   float framelength;
   unsigned long long skip_frames;
+  char *refconf;
 };
 
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
@@ -64,6 +67,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
     break;
   case 's':
     arguments->skip_frames = strtoull(arg, NULL, 10);
+    break;
+  case 'e':
+    arguments->refconf = arg;
     break;
 
   case ARGP_KEY_ARG:
@@ -103,6 +109,7 @@ int main(int argc, char *argv[]) {
   arguments.outfile = "dos.json";
   arguments.framelength = 0.0;
   arguments.skip_frames = 0;
+  arguments.refconf = NULL;
 
   // parse command line arguments
   argp_parse(&argp, argc, argv, 0, 0, &arguments);
@@ -111,8 +118,12 @@ int main(int argc, char *argv[]) {
   bool verbosity = arguments.verbosity;
   char *dosparams_file = arguments.input_files[0];
   char *trajectory_file = arguments.input_files[1];
+  char *refconf_file = arguments.refconf;
   verbPrintf(arguments.verbosity, "dosparams file: %s\n", dosparams_file);
   verbPrintf(arguments.verbosity, "trajectory file: %s\n", trajectory_file);
+  if (refconf_file) {
+      verbPrintf(arguments.verbosity, "refconf file: %s\n", refconf_file);
+  }
 
   // input that will be scanned
   size_t nsamples;
@@ -135,60 +146,38 @@ int main(int argc, char *argv[]) {
                   &moltypes_natomspermol, &moltypes_atommasses,
                   &moltypes_rot_treat, &moltypes_abc_indicators,
                   &ncross_spectra, &cross_spectra_def);
-  verbPrintf(verbosity, "nsamples: %zu\n", nsamples);
-  verbPrintf(verbosity, "nblocks: %zu\n", nblocks);
-  verbPrintf(verbosity, "nblocksteps: %zu\n", nblocksteps);
-  verbPrintf(verbosity, "nmoltypes: %zu\n", nmoltypes);
-  for (size_t h = 0; h < nmoltypes; h++) {
-    verbPrintf(verbosity, "moltype %zu nmols: %zu\n", h, moltypes_nmols[h]);
-    verbPrintf(verbosity, "moltype %zu natomspermol: %zu\n", h,
-               moltypes_natomspermol[h]);
-    verbPrintf(verbosity, "moltype %zu atommasses: ", h);
-    for (size_t j = 0; j < moltypes_natomspermol[h]; j++)
-      verbPrintf(verbosity, "%f ", moltypes_atommasses[h][j]);
-    verbPrintf(verbosity, "\n");
-    verbPrintf(verbosity, "moltype %zu rot_treat: %c\n", h,
-               moltypes_rot_treat[h]);
-    verbPrintf(verbosity, "moltype %zu abc_indicators: ", h);
-    for (size_t j = 0; j < 4; j++)
-      verbPrintf(verbosity, "%d ", moltypes_abc_indicators[h][j]);
-    verbPrintf(verbosity, "\n");
+
+  if (arguments.verbosity) {
+      print_dosparams(nsamples,
+                      nblocks, nblocksteps, nmoltypes, moltypes_nmols,
+                      moltypes_natomspermol, moltypes_atommasses,
+                      moltypes_rot_treat, moltypes_abc_indicators);
   }
 
+
   // generate convenience variables and arrays
-  // convenience variables
   size_t natoms = 0;
   size_t nmols = 0;
   unsigned long nfrequencies = nblocksteps / 2 + 1;
   size_t *moltypes_firstmol = calloc(nmoltypes, sizeof(size_t));
   size_t *moltypes_firstatom = calloc(nmoltypes, sizeof(size_t));
-  for (size_t h = 0; h < nmoltypes; h++) {
-    moltypes_firstmol[h] = nmols;
-    moltypes_firstatom[h] = natoms;
-    nmols += moltypes_nmols[h];
-    natoms += moltypes_nmols[h] * moltypes_natomspermol[h];
-  }
-  size_t *mols_moltypenr = calloc(nmols, sizeof(size_t));
-  size_t *mols_natoms = calloc(nmols, sizeof(size_t));
-  float *mols_mass = calloc(nmols, sizeof(float));
-  for (size_t i = 0; i < nmols; i++) {
-    for (size_t h = 0; h < nmoltypes; h++) {
-      if (i >= moltypes_firstmol[h] &&
-          i < moltypes_firstmol[h] + moltypes_nmols[h])
-        mols_moltypenr[i] = h;
-    }
-    mols_natoms[i] = moltypes_natomspermol[mols_moltypenr[i]];
-    mols_mass[i] = 0;
-    for (size_t j = 0; j < mols_natoms[i]; j++)
-      mols_mass[i] += moltypes_atommasses[mols_moltypenr[i]][j];
-  }
-  size_t *mols_firstatom = calloc(nmols, sizeof(size_t));
-  for (size_t h = 0; h < nmoltypes; h++) {
-    for (size_t ii = 0; ii < moltypes_nmols[h]; ii++) {
-      mols_firstatom[moltypes_firstmol[h] + ii] =
-          moltypes_firstatom[h] + moltypes_natomspermol[h] * ii;
-    }
-  }
+  size_t *mols_moltypenr;
+  size_t *mols_natoms;
+  float *mols_mass;
+  size_t *mols_firstatom;
+  calc_convenience_variables(
+          nmoltypes,
+          moltypes_nmols,
+          moltypes_natomspermol,
+          moltypes_atommasses,
+          &natoms,  // output
+          &nmols,
+          moltypes_firstmol,
+          moltypes_firstatom,
+          &mols_moltypenr,
+          &mols_natoms,
+          &mols_mass,
+          &mols_firstatom);
 
   // open file once for tests
   verbPrintf(verbosity, "starting with file %s\n", trajectory_file);

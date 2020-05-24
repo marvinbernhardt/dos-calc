@@ -295,6 +295,37 @@ int parse_dosparams(const char *dosparams_file,
   return 0;
 }
 
+void print_dosparams(
+        size_t nsamples,
+        size_t nblocks,
+        unsigned long nblocksteps,
+        size_t nmoltypes,
+        size_t *moltypes_nmols,
+        size_t *moltypes_natomspermol,
+        float **moltypes_atommasses,
+        char *moltypes_rot_treat,
+        int **moltypes_abc_indicators) {
+  printf("nsamples: %zu\n", nsamples);
+  printf("nblocks: %zu\n", nblocks);
+  printf("nblocksteps: %lu\n", nblocksteps);
+  printf("nmoltypes: %zu\n", nmoltypes);
+  for (size_t h = 0; h < nmoltypes; h++) {
+    printf("moltype %zu nmols: %zu\n", h, moltypes_nmols[h]);
+    printf("moltype %zu natomspermol: %zu\n", h,
+               moltypes_natomspermol[h]);
+    printf("moltype %zu atommasses: ", h);
+    for (size_t j = 0; j < moltypes_natomspermol[h]; j++)
+      printf("%f ", moltypes_atommasses[h][j]);
+    printf("\n");
+    printf("moltype %zu rot_treat: %c\n", h,
+               moltypes_rot_treat[h]);
+    printf("moltype %zu abc_indicators: ", h);
+    for (size_t j = 0; j < 4; j++)
+      printf("%d ", moltypes_abc_indicators[h][j]);
+    printf("\n");
+  }
+}
+
 void free_dosparams_arrays(size_t nmoltypes, size_t **moltypes_nmols,
                            size_t **moltypes_natomspermol,
                            float ***moltypes_atommasses,
@@ -322,4 +353,47 @@ void free_dosparams_arrays(size_t nmoltypes, size_t **moltypes_nmols,
     free((*cross_spectra_def)[d].dof_pair_defs);
   }
   free(*cross_spectra_def);
+}
+
+void calc_convenience_variables(
+        size_t nmoltypes,
+        size_t *moltypes_nmols,
+        size_t *moltypes_natomspermol,
+        float **moltypes_atommasses,
+        size_t *natoms,  // output
+        size_t *nmols,
+        size_t *moltypes_firstmol,
+        size_t *moltypes_firstatom,
+        size_t **mols_moltypenr,
+        size_t **mols_natoms,
+        float **mols_mass,
+        size_t **mols_firstatom
+        ){
+    for (size_t h = 0; h < nmoltypes; h++) {
+        moltypes_firstmol[h] = *nmols;
+        moltypes_firstatom[h] = *natoms;
+        *nmols += moltypes_nmols[h];
+        *natoms += moltypes_nmols[h] * moltypes_natomspermol[h];
+    }
+    *mols_moltypenr = calloc(*nmols, sizeof(size_t));
+    *mols_natoms = calloc(*nmols, sizeof(size_t));
+    *mols_mass = calloc(*nmols, sizeof(float));
+    *mols_firstatom = calloc(*nmols, sizeof(size_t));
+    for (size_t i = 0; i < *nmols; i++) {
+        for (size_t h = 0; h < nmoltypes; h++) {
+            if (i >= moltypes_firstmol[h] &&
+                    i < moltypes_firstmol[h] + moltypes_nmols[h])
+                (*mols_moltypenr)[i] = h;
+        }
+        (*mols_natoms)[i] = moltypes_natomspermol[(*mols_moltypenr)[i]];
+        (*mols_mass)[i] = 0;
+        for (size_t j = 0; j < (*mols_natoms)[i]; j++)
+            (*mols_mass)[i] += moltypes_atommasses[(*mols_moltypenr)[i]][j];
+    }
+    for (size_t h = 0; h < nmoltypes; h++) {
+        for (size_t ii = 0; ii < moltypes_nmols[h]; ii++) {
+            (*mols_firstatom)[moltypes_firstmol[h] + ii] =
+                moltypes_firstatom[h] + moltypes_natomspermol[h] * ii;
+        }
+    }
 }
