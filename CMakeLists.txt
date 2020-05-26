@@ -7,7 +7,6 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 option(USE_RPATH "Link to libraries in RPATH" ON)
-option(DEBUG "Turn on extensive debugging output at runtime" OFF)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
@@ -28,9 +27,6 @@ if(USE_RPATH)
         BUILD_WITH_INSTALL_RPATH TRUE
         INSTALL_RPATH_USE_LINK_PATH TRUE)
 endif(USE_RPATH)
-if(DEBUG)
-    target_compile_definitions(dos-calc PRIVATE -DDEBUG="1")
-endif(DEBUG)
 
 target_compile_definitions(dos-calc PRIVATE -DVERSION="${PROJECT_VERSION}")
 

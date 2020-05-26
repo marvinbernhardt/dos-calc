@@ -18,6 +18,7 @@ def create_nocomp_spectra(system):
         "rot": ["rot_x", "rot_y", "rot_z"],
         "vib": ["vib_x", "vib_y", "vib_z"],
         "roto": ["roto_a", "roto_b", "roto_c"],
+        "vibc": ["vibc_x", "vibc_y", "vibc_z"],
     }
 
     # sum no-component spectra from component spectra
@@ -70,6 +71,7 @@ def _plot_spectra(
             if not (not show_components and "_" in dos_name)
             if not (show_components and "_" not in dos_name)
             if not (not show_roto and dos_name.startswith("roto"))
+            if not (not show_roto and dos_name.startswith("vibc"))
         }
         nspectra = len(filtered_spectra)
         # loop dos_types to plot
