@@ -199,7 +199,8 @@ int main(int argc, char *argv[]) {
     // test if refconf file is needed but not given and vice versa
     bool refconf_needed = false;
     for (size_t h = 0; h < nmoltypes; h++) {
-        if (moltypes_rot_treat[h] == 'e' || moltypes_rot_treat[h] == 'p') {
+        if (moltypes_rot_treat[h] == 'e' || moltypes_rot_treat[h] == 'p' ||
+            moltypes_rot_treat[h] == 'E' || moltypes_rot_treat[h] == 'P') {
             refconf_needed = true;
         }
     }

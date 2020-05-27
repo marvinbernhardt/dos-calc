@@ -125,21 +125,18 @@ void calculate_refpos_principal_components(
     }
 }
 
-void decompose_velocities(float *block_pos, float *block_vel, float *block_box,
-                          unsigned long nblocksteps, size_t natoms,
-                          size_t nmols, size_t *mol_firstatom,
-                          size_t *mol_natoms, size_t *mol_moltypenr,
-                          float **moltypes_atommasses, float *mol_mass,
-                          char *moltype_rot_treat, int **moltype_abc_indicators,
-                          bool no_pbc, float *atom_refpos_principal_components,
-                          float *mol_velocities_sqrt_m_trn, // from here output
-                          float *mol_omegas_sqrt_i_rot,
-                          float *atom_velocities_sqrt_m_vib,
-                          float *atom_velocities_sqrt_m_rot,
-                          float *atom_velocities_sqrt_m_vibc,
-                          float *mol_block_moments_of_inertia,
-                          float *mol_block_moments_of_inertia_squared,
-                          float *mol_block_coriolis) {
+void decompose_velocities(
+    float *block_pos, float *block_vel, float *block_box,
+    unsigned long nblocksteps, size_t natoms, size_t nmols,
+    size_t *mol_firstatom, size_t *mol_natoms, size_t *mol_moltypenr,
+    float **moltypes_atommasses, float *mol_mass, char *moltype_rot_treat,
+    int **moltype_abc_indicators, bool no_pbc,
+    float *atom_refpos_principal_components,
+    float *mol_velocities_sqrt_m_trn, // from here output
+    float *mol_omegas_sqrt_i_rot, float *atom_velocities_sqrt_m_vib,
+    float *atom_velocities_sqrt_m_rot, float *atom_velocities_sqrt_m_vibc,
+    float *mol_block_moments_of_inertia,
+    float *mol_block_moments_of_inertia_squared, float *mol_block_coriolis) {
 
     // no dynamic teams since molecules all cause roughly the same work
     omp_set_dynamic(0);
@@ -407,8 +404,17 @@ void decompose_velocities(float *block_pos, float *block_vel, float *block_box,
             if (cblas_sdot(3, &eigenvectors[2], 3, c, 1) < 0.0)
                 cblas_sscal(3, -1.0, &eigenvectors[2], 3);
 
+            // angular velocity for output later
+            // can be full ω or Eckart Ω
+            float output_angular_velocity[3];
+            // cases where it is ω
+            if (m_rot_treat == 'f' || m_rot_treat == 'a') {
+                cblas_scopy(3, angular_velocity, 1, output_angular_velocity, 1);
+            }
+
             // eckart frame decomposition
-            if (m_rot_treat == 'e' || m_rot_treat == 'p') {
+            if (m_rot_treat == 'e' || m_rot_treat == 'p' ||
+                m_rot_treat == 'E' || m_rot_treat == 'P') {
                 // calculate Eckart vectors F (F_i in rows)
                 float F[9] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
                 for (size_t j = 0; j < m_natoms; j++) {
@@ -426,7 +432,7 @@ void decompose_velocities(float *block_pos, float *block_vel, float *block_box,
                 // f has f1,f2,f3 in columns
                 float f[9] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
                 // planar molecule
-                if (m_rot_treat == 'p') {
+                if (m_rot_treat == 'p' || m_rot_treat == 'P') {
                     // gram_matrix = F12 @ F12.T
                     float gram_matrix[4] = {0.0, 0.0, 0.0, 0.0};
                     cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, 2, 2,
@@ -464,7 +470,7 @@ void decompose_velocities(float *block_pos, float *block_vel, float *block_box,
                     cblas_scopy(3, f3, 1, &f[2], 3);
                 }
                 // non-planar molecule
-                else if (m_rot_treat == 'e') {
+                else if (m_rot_treat == 'e' || m_rot_treat == 'E') {
                     // gram_matrix = F12 @ F12.T
                     float gram_matrix[9] = {0.0, 0.0, 0.0, 0.0, 0.0,
                                             0.0, 0.0, 0.0, 0.0};
@@ -530,7 +536,8 @@ void decompose_velocities(float *block_pos, float *block_vel, float *block_box,
                         }
                     }
                 }
-                // TODO: calculate rho and check second Eckart condition
+                // possible TODO: calculate rho and check second Eckart
+                // condition
 
                 // calculate J' tensor
                 float J_prime[9] = {0.0, 0.0, 0.0, 0.0, 0.0,
@@ -549,6 +556,7 @@ void decompose_velocities(float *block_pos, float *block_vel, float *block_box,
                 }
                 // Eckart angular velocity Ω
                 float eckart_angular_velocity[3] = {0.0, 0.0, 0.0};
+                // J'
                 float J_prime_temp[9] = {0.0, 0.0, 0.0, 0.0, 0.0,
                                          0.0, 0.0, 0.0, 0.0};
                 cblas_scopy(9, J_prime, 1, J_prime_temp, 1);
@@ -558,12 +566,9 @@ void decompose_velocities(float *block_pos, float *block_vel, float *block_box,
                 int ipiv[3] = {0, 0, 0};
                 LAPACKE_sgesv(LAPACK_ROW_MAJOR, 3, 1, J_prime_temp, 3, ipiv,
                               eckart_angular_velocity, 1);
-                // calculate Ω in principal axis frame
-                float eckart_angular_velocity_pa[3] = {0.0, 0.0, 0.0};
-                for (size_t dim = 0; dim < 3; dim++) {
-                    eckart_angular_velocity_pa[dim] = cblas_sdot(
-                        3, eckart_angular_velocity, 1, &eigenvectors[dim], 3);
-                }
+                // save Ω for later
+                cblas_scopy(3, eckart_angular_velocity, 1,
+                            output_angular_velocity, 1);
                 // total angular velocity ω - Eckart angular velocity Ω
                 float omega_minus_Omega[3] = {0.0, 0.0, 0.0};
                 cblas_scopy(3, angular_velocity, 1, omega_minus_Omega, 1);
@@ -594,6 +599,7 @@ void decompose_velocities(float *block_pos, float *block_vel, float *block_box,
                     }
                 }
                 // writing in output arrays
+                /*
                 for (size_t dim = 0; dim < 3; dim++) {
                     // the rotational velocities
                     mol_omegas_sqrt_i_rot[3 * nblocksteps * i +
@@ -609,25 +615,26 @@ void decompose_velocities(float *block_pos, float *block_vel, float *block_box,
                                                          t] +=
                         powf(moments_of_inertia[dim], 2.0);
                 }
+                */
 
                 free(c_alpha);
             }
 
             // using auxillary frame decompostion
-            if (m_rot_treat == 'a' || m_rot_treat == 'b') {
-                // calculate angular velocity and momentum in abc coords
+            if (m_rot_treat == 'a' || m_rot_treat == 'E' ||
+                m_rot_treat == 'P') {
+                // matrix abc which is used for transfroming in aux frame
                 float abc[9];
                 cblas_scopy(3, a, 1, &abc[0], 3);
                 cblas_scopy(3, b, 1, &abc[1], 3);
                 cblas_scopy(3, c, 1, &abc[2], 3);
+
+                // calculate angular velocity in abc coords
                 float angular_velocity_abc[3] = {0.0, 0.0, 0.0};
-                float angular_momentum_abc[3] = {0.0, 0.0, 0.0};
                 // angular_velocity_abc = angular_velocity @ abc
                 for (size_t dim = 0; dim < 3; dim++) {
                     angular_velocity_abc[dim] =
-                        cblas_sdot(3, angular_velocity, 1, &abc[dim], 3);
-                    angular_momentum_abc[dim] =
-                        cblas_sdot(3, angular_momentum, 1, &abc[dim], 3);
+                        cblas_sdot(3, output_angular_velocity, 1, &abc[dim], 3);
                 }
 
                 // calc moi_tensor in abc coords
@@ -658,19 +665,10 @@ void decompose_velocities(float *block_pos, float *block_vel, float *block_box,
                 // writing in output arrays the rotational velocities
                 for (size_t dim = 0; dim < 3; dim++) {
                     // 'a'bc as rotational axis
-                    if (m_rot_treat == 'a') {
-                        mol_omegas_sqrt_i_rot[3 * nblocksteps * i +
-                                              nblocksteps * dim + t] =
-                            angular_velocity_abc[dim] *
-                            sqrt(moi_tensor_abc[3 * dim + dim]);
-                    }
-                    // a'b'c as rotational axis, but J/sqrt(I)
-                    else if (m_rot_treat == 'b') {
-                        mol_omegas_sqrt_i_rot[3 * nblocksteps * i +
-                                              nblocksteps * dim + t] =
-                            angular_momentum_abc[dim] /
-                            sqrt(moi_tensor_abc[3 * dim + dim]);
-                    }
+                    mol_omegas_sqrt_i_rot[3 * nblocksteps * i +
+                                          nblocksteps * dim + t] =
+                        angular_velocity_abc[dim] *
+                        sqrt(moi_tensor_abc[3 * dim + dim]);
                     // save moments of inertia for each molecule
                     mol_block_moments_of_inertia[3 * nblocksteps * i +
                                                  nblocksteps * dim + t] +=
@@ -680,29 +678,25 @@ void decompose_velocities(float *block_pos, float *block_vel, float *block_box,
                                                          t] +=
                         powf(moi_tensor_abc[3 * dim + dim], 2.0);
                 }
-
                 continue;
             }
 
             // using principal axi frame decompostion
-            if (m_rot_treat == 'f') {
-                // calculate angular velocity in new coords (moi coords)
-                float angular_velocity_nc[3] = {0.0, 0.0, 0.0};
+            if (m_rot_treat == 'f' || m_rot_treat == 'e' ||
+                m_rot_treat == 'p') {
+                // calculate angular velocity in pa coords
+                float angular_velocity_pa[3] = {0.0, 0.0, 0.0};
                 for (size_t dim = 0; dim < 3; dim++) {
-                    angular_velocity_nc[dim] =
-                        cblas_sdot(3, angular_momentum, 1, &eigenvectors[dim],
-                                   3) /
-                        moments_of_inertia[dim];
+                    angular_velocity_pa[dim] = cblas_sdot(
+                        3, output_angular_velocity, 1, &eigenvectors[dim], 3);
                 }
                 // writing in output arrays
                 for (size_t dim = 0; dim < 3; dim++) {
                     // the rotational velocities
-                    if (m_rot_treat == 'f') {
-                        mol_omegas_sqrt_i_rot[3 * nblocksteps * i +
-                                              nblocksteps * dim + t] =
-                            angular_velocity_nc[dim] *
-                            sqrt(moments_of_inertia[dim]);
-                    }
+                    mol_omegas_sqrt_i_rot[3 * nblocksteps * i +
+                                          nblocksteps * dim + t] =
+                        angular_velocity_pa[dim] *
+                        sqrt(moments_of_inertia[dim]);
                     // save moments of inertia for each molecule
                     mol_block_moments_of_inertia[3 * nblocksteps * i +
                                                  nblocksteps * dim + t] +=
@@ -718,10 +712,6 @@ void decompose_velocities(float *block_pos, float *block_vel, float *block_box,
             free(positions);
             free(positions_rel);
             free(velocities_rot);
-        }
-
-        // print data for one frame
-        for (size_t i = 0; i < nmols; i++) {
         }
     }
 }

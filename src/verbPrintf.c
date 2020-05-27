@@ -8,14 +8,14 @@
 
 // print only if verbosity is true
 void verbPrintf(bool verbosity, const char *format, ...) {
-  va_list args;
+    va_list args;
 
-  if (!verbosity)
-    return;
+    if (!verbosity)
+        return;
 
-  va_start(args, format);
-  vfprintf(stderr, format, args);
-  va_end(args);
+    va_start(args, format);
+    vfprintf(stderr, format, args);
+    va_end(args);
 }
 
 #endif
