@@ -28,7 +28,9 @@ def create_nocomp_spectra(system):
             dos_nocomp_data = None
             # loop dos_types to sum
             for dos_type_comp in dos_types_comp:
-                dos_comp_data = np.array(moltype["spectra"][dos_type_comp])
+                dos_comp_data = np.array(
+                    moltype["spectra"][dos_type_comp], dtype=np.float64
+                )
                 if dos_nocomp_data is None:
                     dos_nocomp_data = dos_comp_data.copy()
                 else:
@@ -84,14 +86,10 @@ def _plot_spectra(
             integral = _integral_from_dos(freq, dos)
             if temperature is None:
                 prefactor = 1
-                print(
-                    f"integral {dos_name}: {prefactor*integral:.4E} kJ/mol"
-                )
+                print(f"integral {dos_name}: {prefactor*integral:.4E} kJ/mol")
             else:
                 prefactor = 2 / K_GRO / temperature
-                print(
-                    f"integral {dos_name} / (1/2 k T): {prefactor*integral:.4f}"
-                )
+                print(f"integral {dos_name} / (1/2 k T): {prefactor*integral:.4f}")
             # plot
             if show_components:
                 color = plt.get_cmap("brg")(h / nmoltypes + d / nmoltypes / nspectra)
@@ -114,6 +112,18 @@ def _plot_spectra(
                     facecolor=line.get_color(),
                     alpha=0.3,
                 )
+        # show coriolis term
+        if show_roto:
+            if show_samples:
+                coriolis_term = float(moltype['coriolis'][sample])
+            else:
+                coriolis_term = np.mean(moltype['coriolis'])
+            if temperature is None:
+                prefactor = 1
+                print(f"coriolis term: {prefactor*coriolis_term:.4E} kJ/mol")
+            else:
+                prefactor = 2 / K_GRO / temperature
+                print(f"coriolis term / (1/2 k T): {prefactor*coriolis_term:.4f}")
 
     if show_cross:
         for d, (cs_name, cs) in enumerate(system["cross_spectra"].items()):
@@ -173,12 +183,18 @@ def plot_spectra(
                 show_samples,
                 show_roto,
                 temperature,
-                sample,
+                sample=sample,
             )
         plt.show()
     else:
         _plot_spectra(
-            system, show_components, show_cross, show_samples, show_roto, temperature
+            system,
+            show_components,
+            show_cross,
+            show_samples,
+            show_roto,
+            temperature,
+            sample=None,
         )
         plt.show()
 

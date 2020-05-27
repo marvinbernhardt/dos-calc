@@ -138,7 +138,7 @@ void dos_calculation(
                     dos = 9 + xyz;
                 }
                 if ((dof >= vibc_start) && (dof < vibc_end)) {
-                    size_t d_vibc = dof - vib_start;
+                    size_t d_vibc = dof - vibc_start;
                     memcpy(fft_in,
                            &atom_velocities_sqrt_m_vibc
                                [(mol_first_dof_atomic + d_vibc) * nblocksteps],

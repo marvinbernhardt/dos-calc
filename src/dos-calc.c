@@ -196,6 +196,24 @@ int main(int argc, char *argv[]) {
     chfl_trajectory_close(file);
     verbPrintf(verbosity, "framelength is %f ps\n", framelength);
 
+    // test if refconf file is needed but not given and vice versa
+    bool refconf_needed = false;
+    for (size_t h = 0; h < nmoltypes; h++) {
+        if (moltypes_rot_treat[h] == 'e' || moltypes_rot_treat[h] == 'p') {
+            refconf_needed = true;
+        }
+    }
+    if (!refconf_file && refconf_needed) {
+        fprintf(stderr,
+                "ERROR: No refconf file given but needed for some molecules\n");
+        return 1;
+    }
+    if (refconf_file && !refconf_needed) {
+        fprintf(
+            stderr,
+            "WARNING: Refconf file provided but not needed for any moltype\n");
+    }
+
     // open, test, and evaluate refconf file
     float *refconf_pos = calloc(natoms * 3, sizeof(float));
     float *refconf_box = calloc(3, sizeof(float));
@@ -237,8 +255,10 @@ int main(int argc, char *argv[]) {
                                  "vib_z",  "roto_a", "roto_b", "roto_c",
                                  "vibc_x", "vibc_y", "vibc_z"};
     // order is: trn_xyz, rot_xyz, vib_xyz, rot_omega_abc
+    // this one has all the dos in it
     float *moltypes_dos_samples =
         calloc(nmoltypes * ndos * nsamples * nfrequencies, sizeof(float));
+    // this one all cross spectra
     float *cross_spectra_samples =
         calloc(ncross_spectra * nsamples * nfrequencies, sizeof(float));
     // moments of inertia and its std. deviation
@@ -248,6 +268,9 @@ int main(int argc, char *argv[]) {
         calloc(nmoltypes * nsamples * 3, sizeof(float));
     float *moltypes_samples_moments_of_inertia_std =
         calloc(nmoltypes * nsamples * 3, sizeof(float));
+    // coriolis energy term
+    float *moltypes_samples_coriolis =
+        calloc(nmoltypes * nsamples, sizeof(float));
 
     // TIMING: parse end
     timings[0] += omp_get_wtime() - begin;
@@ -258,9 +281,11 @@ int main(int argc, char *argv[]) {
     for (size_t sample = 0; sample < nsamples; sample++) {
         verbPrintf(verbosity, "now doing sample %zu\n", sample);
 
+        // moi/coiolis of mols (this sample)
         float *mol_moments_of_inertia = calloc(nmols * 3, sizeof(float));
         float *mol_moments_of_inertia_squared =
             calloc(nmols * 3, sizeof(float));
+        float *mol_coriolis = calloc(nmols, sizeof(float));
 
         // start block loop
         verbPrintf(verbosity, "going through %zu blocks\n", nblocks);
@@ -279,6 +304,7 @@ int main(int argc, char *argv[]) {
             begin = omp_get_wtime();
 
             verbPrintf(verbosity, "start decomposition\n");
+            // series to be fourier transformed per block
             float *mol_velocities_sqrt_m_trn =
                 calloc(nmols * 3 * nblocksteps, sizeof(float));
             float *mol_omegas_sqrt_i_rot =
@@ -289,20 +315,25 @@ int main(int argc, char *argv[]) {
                 calloc(natoms * 3 * nblocksteps, sizeof(float));
             float *atom_velocities_sqrt_m_vibc =
                 calloc(natoms * 3 * nblocksteps, sizeof(float));
+            // per block vectors
             float *mol_block_moments_of_inertia =
                 calloc(nmols * 3 * nblocksteps, sizeof(float));
             float *mol_block_moments_of_inertia_squared =
                 calloc(nmols * 3 * nblocksteps, sizeof(float));
+            // per block numbers
+            float *mol_block_coriolis =
+                calloc(nmols * nblocksteps, sizeof(float));
             decompose_velocities(
                 block_pos, block_vel, block_box, nblocksteps, natoms, nmols,
                 mols_firstatom, mols_natoms, mols_moltypenr,
                 moltypes_atommasses, mols_mass, moltypes_rot_treat,
                 moltypes_abc_indicators, arguments.no_pbc,
-                atom_refpos_principal_components, mol_velocities_sqrt_m_trn,
-                mol_omegas_sqrt_i_rot, // output
-                atom_velocities_sqrt_m_vib, atom_velocities_sqrt_m_rot,
-                atom_velocities_sqrt_m_vibc, mol_block_moments_of_inertia,
-                mol_block_moments_of_inertia_squared);
+                atom_refpos_principal_components,
+                mol_velocities_sqrt_m_trn, // output
+                mol_omegas_sqrt_i_rot, atom_velocities_sqrt_m_vib,
+                atom_velocities_sqrt_m_rot, atom_velocities_sqrt_m_vibc,
+                mol_block_moments_of_inertia,
+                mol_block_moments_of_inertia_squared, mol_block_coriolis);
 
             // TIMING: vel_decomp end
             timings[2] += omp_get_wtime() - begin;
@@ -319,9 +350,7 @@ int main(int argc, char *argv[]) {
                 moltypes_dos_samples, // output
                 cross_spectra_samples);
 
-            // moi summation over all nblocksteps this block
-            verbPrintf(verbosity,
-                       "start sum of moments of inertia this block\n");
+            // moi summation over all nblocksteps (this block)
             for (size_t i = 0; i < nmols; i++) {
                 for (size_t t = 0; t < nblocksteps; t++) {
                     for (size_t abc = 0; abc < 3; abc++) {
@@ -332,6 +361,13 @@ int main(int argc, char *argv[]) {
                             mol_block_moments_of_inertia_squared
                                 [3 * nblocksteps * i + nblocksteps * abc + t];
                     }
+                }
+            }
+
+            // coriolis summation over all nblocksteps (this block)
+            for (size_t i = 0; i < nmols; i++) {
+                for (size_t t = 0; t < nblocksteps; t++) {
+                    mol_coriolis[i] += mol_block_coriolis[nblocksteps * i + t];
                 }
             }
 
@@ -350,6 +386,7 @@ int main(int argc, char *argv[]) {
             free(atom_velocities_sqrt_m_vibc);
             free(mol_block_moments_of_inertia);
             free(mol_block_moments_of_inertia_squared);
+            free(mol_block_coriolis);
         }
         verbPrintf(verbosity, "finished all blocks\n");
 
@@ -358,20 +395,29 @@ int main(int argc, char *argv[]) {
                     mol_moments_of_inertia, 1);
         cblas_sscal(nmols * 3, 1.0 / (float)nblocks / (float)nblocksteps,
                     mol_moments_of_inertia_squared, 1);
+        // divide coriolis by number of blocks and number of blocksteps
+        cblas_sscal(nmols, 1.0 / (float)nblocks / (float)nblocksteps,
+                    mol_coriolis, 1);
 
         // moi summation over all molecules (this sample)
         for (size_t i = 0; i < nmols; i++) {
             for (size_t abc = 0; abc < 3; abc++) {
                 size_t moi_index =
-                    +mols_moltypenr[i] * nsamples * 3 + sample * 3 + abc;
+                    mols_moltypenr[i] * nsamples * 3 + sample * 3 + abc;
                 moltypes_samples_moments_of_inertia[moi_index] +=
                     mol_moments_of_inertia[3 * i + abc];
                 moltypes_samples_moments_of_inertia_squared[moi_index] +=
                     mol_moments_of_inertia_squared[3 * i + abc];
             }
         }
+        // coriolis summation over all molecules (this sample)
+        for (size_t i = 0; i < nmols; i++) {
+            size_t coriolis_index = mols_moltypenr[i] * nsamples + sample;
+            moltypes_samples_coriolis[coriolis_index] += mol_coriolis[i];
+        }
         free(mol_moments_of_inertia);
         free(mol_moments_of_inertia_squared);
+        free(mol_coriolis);
     }
     verbPrintf(verbosity, "finished all samples\n");
     chfl_trajectory_close(file);
@@ -394,6 +440,12 @@ int main(int argc, char *argv[]) {
                   powf(moltypes_samples_moments_of_inertia[q], 2.0));
     }
 
+    // average Coriolis energy term
+    for (size_t h = 0; h < nmoltypes; h++) {
+        cblas_sscal(nsamples, 1.0 / (float)moltypes_nmols[h],
+                    &moltypes_samples_coriolis[h * nsamples], 1);
+    }
+
     // normalize dos
     for (size_t h = 0; h < nmoltypes; h++) {
         float norm_factor = 1.0 / (float)nblocks;        // normalize for blocks
@@ -411,14 +463,15 @@ int main(int argc, char *argv[]) {
                 &cross_spectra_samples[0], 1);
 
     // write dos.json
-    result = write_dos(
-        arguments.outfile, nsamples, nblocksteps, nfrequencies, framelength,
-        ndos, ncross_spectra, dos_names, nmoltypes, moltypes_dos_samples,
-        cross_spectra_samples, moltypes_samples_moments_of_inertia,
-        moltypes_samples_moments_of_inertia_std, cross_spectra_def);
+    result = write_dos(arguments.outfile, nsamples, nblocksteps, nfrequencies,
+                       framelength, ndos, ncross_spectra, dos_names, nmoltypes,
+                       moltypes_dos_samples, cross_spectra_samples,
+                       moltypes_samples_moments_of_inertia,
+                       moltypes_samples_moments_of_inertia_std,
+                       cross_spectra_def, moltypes_samples_coriolis);
     if (result != 0) {
         fprintf(stderr, "ERROR: Could not write json to file.\n");
-        return 1;
+        exit(1);
     }
 
     // free output
@@ -427,6 +480,7 @@ int main(int argc, char *argv[]) {
     free(moltypes_samples_moments_of_inertia);
     free(moltypes_samples_moments_of_inertia_squared);
     free(moltypes_samples_moments_of_inertia_std);
+    free(moltypes_samples_coriolis);
 
     // free input arrays
     free_dosparams_arrays(nmoltypes, &moltypes_nmols, &moltypes_natomspermol,

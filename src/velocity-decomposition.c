@@ -117,7 +117,10 @@ void calculate_refpos_principal_components(
         // save in array
         cblas_scopy(m_natoms * 3, refpos_principal_components, 1,
                     &atom_refpos_principal_components[m_firstatom * 3], 1);
+        // free arrays
         free(refpos_principal_components);
+        free(positions);
+        free(positions_rel);
         // TODO: check first eckart condition
     }
 }
@@ -135,7 +138,8 @@ void decompose_velocities(float *block_pos, float *block_vel, float *block_box,
                           float *atom_velocities_sqrt_m_rot,
                           float *atom_velocities_sqrt_m_vibc,
                           float *mol_block_moments_of_inertia,
-                          float *mol_block_moments_of_inertia_squared) {
+                          float *mol_block_moments_of_inertia_squared,
+                          float *mol_block_coriolis) {
 
     // no dynamic teams since molecules all cause roughly the same work
     omp_set_dynamic(0);
@@ -563,13 +567,25 @@ void decompose_velocities(float *block_pos, float *block_vel, float *block_box,
                 // total angular velocity ω - Eckart angular velocity Ω
                 float omega_minus_Omega[3] = {0.0, 0.0, 0.0};
                 cblas_scopy(3, angular_velocity, 1, omega_minus_Omega, 1);
-                cblas_saxpy(3, -1.0, eckart_angular_velocity, 1, omega_minus_Omega, 1);
+                cblas_saxpy(3, -1.0, eckart_angular_velocity, 1,
+                            omega_minus_Omega, 1);
                 // vibrational motion coupled with rotation u
                 // u_j = (ω - Ω) x δr_j
+                // and Coriolis energy term
+                // Σ_j u_j · (Ω x δr_j)
                 float velocity_vibc[3] = {0.0, 0.0, 0.0};
                 for (size_t j = 0; j < m_natoms; j++) {
                     size_t atom = m_firstatom + j;
-                    crossProduct(omega_minus_Omega, &positions_rel[3 * j], velocity_vibc);
+                    // vibc
+                    crossProduct(omega_minus_Omega, &positions_rel[3 * j],
+                                 velocity_vibc);
+                    // cross product for coriolis
+                    crossProduct(eckart_angular_velocity, &positions_rel[3 * j],
+                                 cross_product);
+                    // add coriolis energy
+                    mol_block_coriolis[nblocksteps * i + t] +=
+                        m_atommasses[j] *
+                        cblas_sdot(3, velocity_vibc, 1, cross_product, 1);
                     // write in output array atom_velocities_sqrt_m_vibc
                     for (size_t dim = 0; dim < 3; dim++) {
                         atom_velocities_sqrt_m_vibc[3 * nblocksteps * atom +
@@ -621,10 +637,10 @@ void decompose_velocities(float *block_pos, float *block_vel, float *block_box,
                                     0.0, 0.0, 0.0, 0.0};
                 cblas_scopy(9, abc, 1, abc_inv, 1);
                 if (invert_matrix(abc_inv, 3) != 0) {
-                    fprintf(
-                        stderr,
-                        "ERROR: non-invertible abc matrix of molecule %zu\n",
-                        i);
+                    fprintf(stderr,
+                            "ERROR: non-invertible abc matrix of molecule "
+                            "%zu\n",
+                            i);
                     exit(1);
                 }
                 // temp_matrix = abc_inv @ moi_tensor
