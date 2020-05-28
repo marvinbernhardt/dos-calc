@@ -7,18 +7,18 @@ Calculation of translational, rotational and vibrational density of states
 - CBLAS (openblas can be problematic in combination with OPENMP)
 - LAPACKE (Do not use 3.9! there is a [bug that causes wrong eigenvectors](https://github.com/Reference-LAPACK/lapack/issues/379). 3.8 is fine.)
 - FFTW
-- [Chemfiles](https://chemfiles.org) (0.9 does not contain .trr reader, master does)
+- [Chemfiles](https://chemfiles.org) (below 0.9.3 does not contain .trr reader)
 - [cJSON](https://github.com/DaveGamble/cJSON) 
 
 ## Installation
 
 ```bash
-# needed only if libxdrfile and/or cJSON are not installed globally
+# needed if libxdrfile and/or cJSON are not installed globally
 CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/path/to/libxdrfile 
 CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/path/to/cJSON
 export CMAKE_PREFIX_PATH
 
-INSTALL_PREFIX=/destination/for/dos-calc
+INSTALL_PREFIX=/choose/destination/for/dos-calc
 
 mkdir build
 pushd build
@@ -31,15 +31,12 @@ popd
 By default RPATH is used for the location of libxdrfile.so and libcjson.so.1, but it can be turned off using `-DUSE_RPATH=OFF`.
 If turned off, libxdrfile.so and libcjson.so.1 have to be in a standard directory or in `LD_LIBRARY_PATH` at runtime.
 
-When cmake is run with `-DDEBUG=ON` a lot of intermediate results are printed during runtime.
-This is mostly be useful for very small test systems.
-
 There is also a scripts folder, but those scripts are not automatically installed anywhere.
 
 ## Usage
 
 Check `dos-calc --help` for command line options.
-In any case one needs to provide a parameter file in JSON format (e.g. `params.json`) and a trajectory in trr format (e.g. `traj.trr`).
+In any case one needs to provide a parameter file in JSON format (e.g. `params.json`) and a trajectory in any format Chemfiles supports.
 The output is be written to the JSON file `dos.json` or whatever filename specified with `-o`.
 
 ## Input
@@ -103,11 +100,14 @@ One can define less atoms in total, than are present in the trajectory (produces
 
 For each moltype there is also:
 
-- `rot_treat`, which is a char that determines the method used for the rotational treatment.
+- `rot_treat`, which is a char that determines the method used for the rotational DoS that is calculated.
 - `abc_indicators`, which is a list of four integers, which indicate two pairs of atoms (zero indexed).
   If the number is -1 it stands for the center of mass of the molecule, but this is only allowed for the second number of each pair.
-  These atom pairs define the helping vectors a, b and c, that are related to the true principal axes (from lowest to highest moment of inertia)
+  These atom pairs define the helping vectors a, b and c, that also form the auxiliary frame.
   The first two numbers define a, the second two define b'. c is the cross product of a and b', b is the cross product of c and a.
+  Whenever principal axis are calculated in DosCalc, the auxiliary vectors will be used to switch them to point in a consistent direction.
+  Therefore a, b, c should point roughly in the direction of the principal axes (from lowest to highest moment of inertia).
+  They can also be used to directly output the rotational DoS with respact to the auxiliary frame (in this case their order is not important).
 
 Depending on the point group of the molecule the following needs to be defined:
 
@@ -115,19 +115,28 @@ Depending on the point group of the molecule the following needs to be defined:
 - For linear molecules set `"rot_treat": "l"`. `abc_indicators` is ignored.
   The rotational DoS is calculated with regard to the axes x, y, and z (but still be called `rot_a`, ... in the output file.
   Tested only for diatomic molecules.
-- For molecules where the axis can swap order by vibration, for example ammonia, set `"rot_treat": "a"` and `"abc_indicators": [1, 2, 0 -1]`.
-  Ammonia has atoms N H H H. Therefore 1 2 defines vector a between two hydrogens. 0 -1 defines vector b' from the nitrogen atom to the COM and thereby along the symmetry axis.
-  One can not use the actual principal axes of rotation of the molecule, because they swap order during vibration.
-  The rotational DoS is calculated be with regard to sqrt(I_l) * ω_l where l is one of a, b and c.
-  The setting `"rot_treat": "b"` does the same but Fourier transforms L_l / sqrt(I_l).
-  Also the moments of inertia are given with respect to those axes.
-  Note, that this does yield unusable results, if a, b and c are not close to the actual principal axes.
+- For molecules where the principal axis can swap order by vibration, for example ammonia, use the auxiliary frame by setting `"rot_treat": "a"` and `"abc_indicators": [1, 2, 0 -1]`.
+  Ammonia has atoms N H H H.
+  One can not use the actual principal axes of the molecule, because they swap order during vibration.
+  Therefore 1 2 defines vector a between two hydrogens. 0 -1 defines vector b' from the nitrogen atom to the COM and thereby along the symmetry axis.
+  The rotational DoS is calculated be with regard to sqrt(I^aux_l) * ω^aux_l where l is one of the auxiliary axis a, b and c.
+  Also the moments of inertia are given with respect to those axes (ignoring off-diagonal elements of the moments of inertia tensor).
+  Note, that this does yield unusable results, if a, b and c are not close to the actual principal axes (but the order does not matter).
 - For other molecules, for example water, set `"rot_treat": "f"` and `"abc_indicators": [1, 2, 0 -1]`.
   Water has atoms O H H. Therefore 1 2 defines vector a between the two hydrogens. 0 -1 defines vector b' along the symmetry axis.
-  The rotational DoS is calculated with regard to the actual principal axes of rotation.
+  The rotational DoS is calculated with regard to the principal axes of rotation.
   The vectors a, b and c are used to ensure, that the actual axis derived from the moment of inertia tensor, always point in the same direction.
   This will likely be the correct choice for most molecules, especially larger ones without symmetries.
 - If one does not want any velocity separation `"rot_treat": "u"` can be used and the unseparated DoS is written to `vib_{x,y,z}`.
+  `abc_indicators` is ignored.
+- For Eckart separation use one of `e,E,p,E` for `rot_treat`.
+  `p` and `P` are used for planar, `e` and `E` for tree-dimensionsal molecules.
+  The capital letters use sqrt(I^aux_l) * ω^aux_l where l is one of the auxiliary vectors for output.
+  Use these when the princincipal axis frame is not unique as described above for `"rot_treat": "a"`.
+  The lower-case letters will return sqrt(I^pa_l) * ω^pa where l is one of the principal axis.
+  For Eckart separation you also need to provide a reference structure for each molecule.
+  It can for example be obtained by running a steepest decent run with all intermolecular interactions turned off.
+  Note that if the molecule has rotating sub-groups such as methyl-groups then the alignment of the reference structure to the molecule will produce artifacts in the rotational DoS.
 
 ### Cross spectrum
 
@@ -142,6 +151,7 @@ The variable `dof_type` can be one of:
 - "r" for rotational xyz-component of each atom in the molecule. Possible indices for dof_list: 0, 1, ..., 3*mol_natoms.
 - "v" for vibrational xyz-component of each atom in the molecule. Possible indices for dof_list: 0, 1, ..., 3*mol_natoms.
 - "o" for rotational abc-component of the molecule. Possible indices for dof_list: 0, 1, 2.
+- "c" for rotational-vibrational-coupled xyz-component of each atom in the molecule. Possible indices for dof_list: 0, 1, ..., 3*mol_natoms.
 
 Here, mol_natoms indicates the number of atoms in one molecule of the chosen moleculetype.
 
@@ -182,7 +192,10 @@ A example dos.json corresponding to the example above with long lists of numbers
                 "rot_b": [[...], [...]],
                 "rot_c": [[...], [...]]
             },
-            "moments_of_inertia": [[...], [...]]
+            "moments_of_inertia": [[...], [...]],
+            "moments_of_inertia_std": [[...], [...]],
+            "coriolis": [...]
+
         }],
     "cross_spectra": {
         "water_trn water_vib": [[...], [...]]
@@ -190,8 +203,9 @@ A example dos.json corresponding to the example above with long lists of numbers
 }
 ```
 
-The first dimension of each spectrum and `moments_of_inertia` list is determined by `nsamples`.
+The first dimension of each spectrum, `moments_of_inertia`, `moments_of_inertia_std`, and `coriolis` is determined by `nsamples`.
 The second dimension of each spectrum list is the number of frequencies, which is `floor(nblocksteps / 2) + 1`.
+The Coriolis term will only be non-zero if Eckart decomposition is used.
 
 A verbal (and therefore not exact) description of the DoS components:
 
@@ -219,9 +233,9 @@ The unit of the DoS is [S] = [E] * ps.
 - PBC recombination does not work for non-orthorhombic boxes, will produce an error.
   However one can make all molecules whole in the trajectory (for example with `gmx trjconv -pbc mol`) before using DosCalc and then use the `--no-pbc` option.
   Whole molecules are alowed to jump between frames so a full unwrapping of the trajectory is not necessary.
-- The program uses single precision.
+- The program uses single precision (if you find this is not sufficient, it should be simple replacing all `float` with `double` or make it a compile option).
 - Linear molecules are assumed to be diatomic.
-- Not tested and likely to fail on periodic molecules.
+- Not tested on periodic molecules.
 
 ## Scripts
 
