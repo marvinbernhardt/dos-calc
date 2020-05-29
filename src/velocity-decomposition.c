@@ -515,7 +515,7 @@ void decompose_velocities(
                 }
                 // Not sure what number is reasonable here
                 if (fabs(check_louck[0]) > 1.0e-3 ||
-                    fabs(check_louck[2]) > 1.0e-3 ||
+                    fabs(check_louck[1]) > 1.0e-3 ||
                     fabs(check_louck[2]) > 1.0e-3) {
                     fprintf(
                         stderr,
