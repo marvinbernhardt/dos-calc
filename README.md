@@ -1,5 +1,7 @@
 # DosCalc
 
+[![Codacy Badge](https://app.codacy.com/project/badge/Grade/9f550484084e4cb4b4829000c1bc80d9)](https://www.codacy.com/manual/marvinbernhardt/dos-calc?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=marvinbernhardt/dos-calc&amp;utm_campaign=Badge_Grade)
+
 Calculation of translational, rotational and vibrational density of states
 
 ## Dependencies
