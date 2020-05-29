@@ -25,6 +25,8 @@ def create_nocomp_spectra(system):
     for moltype in system["moltypes"]:
         # loop dos_types to build
         for dos_type_nocomp, dos_types_comp in dos_nocomp_dict.items():
+            if dos_types_comp[0] not in moltype["spectra"]:
+                continue
             dos_nocomp_data = None
             # loop dos_types to sum
             for dos_type_comp in dos_types_comp:
@@ -114,16 +116,17 @@ def _plot_spectra(
                 )
         # show coriolis term
         if show_roto:
-            if show_samples:
-                coriolis_term = float(moltype['coriolis'][sample])
-            else:
-                coriolis_term = np.mean(moltype['coriolis'])
-            if temperature is None:
-                prefactor = 1
-                print(f"coriolis term: {prefactor*coriolis_term:.4E} kJ/mol")
-            else:
-                prefactor = 2 / K_GRO / temperature
-                print(f"coriolis term / (1/2 k T): {prefactor*coriolis_term:.4f}")
+            if 'coriolis' in moltype:
+                if show_samples:
+                    coriolis_term = float(moltype['coriolis'][sample])
+                else:
+                    coriolis_term = np.mean(moltype['coriolis'])
+                if temperature is None:
+                    prefactor = 1
+                    print(f"coriolis term: {prefactor*coriolis_term:.4E} kJ/mol")
+                else:
+                    prefactor = 2 / K_GRO / temperature
+                    print(f"coriolis term / (1/2 k T): {prefactor*coriolis_term:.4f}")
 
     if show_cross:
         for d, (cs_name, cs) in enumerate(system["cross_spectra"].items()):
