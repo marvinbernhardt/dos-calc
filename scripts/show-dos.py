@@ -22,7 +22,7 @@ def create_nocomp_spectra(system):
     }
 
     # sum no-component spectra from component spectra
-    for h, moltype in enumerate(system["moltypes"]):
+    for moltype in system["moltypes"]:
         # loop dos_types to build
         for dos_type_nocomp, dos_types_comp in dos_nocomp_dict.items():
             dos_nocomp_data = None
@@ -64,7 +64,7 @@ def _plot_spectra(
 
     linestyles = ["--", "-.", ":", (0, (3, 2, 1, 2, 1, 2))]
 
-    fig, ax = plt.subplots(figsize=(5, 3))
+    _, ax = plt.subplots(figsize=(5, 3))
     for h, moltype in enumerate(system["moltypes"]):
         # filter spectra for comp/nocomp and roto
         filtered_spectra = {

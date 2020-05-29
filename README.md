@@ -5,16 +5,20 @@ Calculation of translational, rotational and vibrational density of states
 ## Dependencies
 
 - CBLAS (openblas can be problematic in combination with OPENMP)
+
 - LAPACKE (Do not use 3.9! there is a [bug that causes wrong eigenvectors](https://github.com/Reference-LAPACK/lapack/issues/379). 3.8 is fine.)
+
 - FFTW
+
 - [Chemfiles](https://chemfiles.org) (below 0.9.3 does not contain .trr reader)
-- [cJSON](https://github.com/DaveGamble/cJSON) 
+
+- [cJSON](https://github.com/DaveGamble/cJSON)
 
 ## Installation
 
 ```bash
 # needed if libxdrfile and/or cJSON are not installed globally
-CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/path/to/libxdrfile 
+CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/path/to/libxdrfile
 CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/path/to/cJSON
 export CMAKE_PREFIX_PATH
 
@@ -101,6 +105,7 @@ One can define less atoms in total, than are present in the trajectory (produces
 For each moltype there is also:
 
 - `rot_treat`, which is a char that determines the method used for the rotational DoS that is calculated.
+
 - `abc_indicators`, which is a list of four integers, which indicate two pairs of atoms (zero indexed).
   If the number is -1 it stands for the center of mass of the molecule, but this is only allowed for the second number of each pair.
   These atom pairs define the helping vectors a, b and c, that also form the auxiliary frame.
@@ -112,9 +117,11 @@ For each moltype there is also:
 Depending on the point group of the molecule the following needs to be defined:
 
 - For atoms and monoatomic ions (if `atom_masses` has only one element) `rot_treat` and `abc_indicators` both are ignored.
+
 - For linear molecules set `"rot_treat": "l"`. `abc_indicators` is ignored.
   The rotational DoS is calculated with regard to the axes x, y, and z (but still be called `rot_a`, ... in the output file.
   Tested only for diatomic molecules.
+
 - For molecules where the principal axis can swap order by vibration, for example ammonia, use the auxiliary frame by setting `"rot_treat": "a"` and `"abc_indicators": [1, 2, 0 -1]`.
   Ammonia has atoms N H H H.
   One can not use the actual principal axes of the molecule, because they swap order during vibration.
@@ -122,13 +129,16 @@ Depending on the point group of the molecule the following needs to be defined:
   The rotational DoS is calculated be with regard to sqrt(I^aux_l) * ω^aux_l where l is one of the auxiliary axis a, b and c.
   Also the moments of inertia are given with respect to those axes (ignoring off-diagonal elements of the moments of inertia tensor).
   Note, that this does yield unusable results, if a, b and c are not close to the actual principal axes (but the order does not matter).
+
 - For other molecules, for example water, set `"rot_treat": "f"` and `"abc_indicators": [1, 2, 0 -1]`.
   Water has atoms O H H. Therefore 1 2 defines vector a between the two hydrogens. 0 -1 defines vector b' along the symmetry axis.
   The rotational DoS is calculated with regard to the principal axes of rotation.
   The vectors a, b and c are used to ensure, that the actual axis derived from the moment of inertia tensor, always point in the same direction.
   This will likely be the correct choice for most molecules, especially larger ones without symmetries.
+
 - If one does not want any velocity separation `"rot_treat": "u"` can be used and the unseparated DoS is written to `vib_{x,y,z}`.
   `abc_indicators` is ignored.
+
 - For Eckart separation use one of `e,E,p,E` for `rot_treat`.
   `p` and `P` are used for planar, `e` and `E` for tree-dimensionsal molecules.
   The capital letters use sqrt(I^aux_l) * ω^aux_l where l is one of the auxiliary vectors for output.
@@ -157,7 +167,7 @@ Here, mol_natoms indicates the number of atoms in one molecule of the chosen mol
 
 ## Output
 
-A example dos.json corresponding to the example above with long lists of numbers shortened to [...].
+A example dos.json corresponding to the example above with long lists of numbers shortened to `[...]`.
 ```
 {
     "frequencies": [...],
@@ -221,11 +231,11 @@ Masses are assumed to be provided in u.
 
 The framelength will be read from the trajectory for .trr files or from the command line argument and is assumed to be in picoseconds.
 
-DosCalc relies on Chemfiles for reading the trajectory. Chemfiles usually converts units to Å and Å/ps. DosCalc converts those to nm and nm/ps by dividing positions and velocities by 10. Thereby the Gromacs unit system is established and the unit of energy is [E] = u * nm²/ps² = kJ/mol.
+DosCalc relies on Chemfiles for reading the trajectory. Chemfiles usually converts units to `Å` and `Å/ps`. DosCalc converts those to `nm` and `nm/ps` by dividing positions and velocities by 10. Thereby the Gromacs unit system is established and the unit of energy is `[E] = u * nm²/ps² = kJ/mol`.
 
-However, for some formats, like lammps dumps, chemfiles can not infer the unit of the velocity and proviedes it unmodified. The energy will have the unit [E] = u * ([v] * 10)². So for example if lammps runs with units *real*, then [v] = Å/fs and therefore [E] = u * Å²/fs² * 100 = u * nm²/fs² = 10^6 kJ/mol.
+However, for some formats, like lammps dumps, chemfiles can not infer the unit of the velocity and proviedes it unmodified. The energy will have the unit `[E] = u * ([v] * 10)²`. So for example if lammps runs with units *real*, then `[v] = Å/fs` and therefore `[E] = u * Å²/fs² * 100 = u * nm²/fs² = 10^6 kJ/mol`.
 
-The unit of the DoS is [S] = [E] * ps.
+The unit of the DoS is `[S] = [E] * ps`.
 
 ## Limitations
 

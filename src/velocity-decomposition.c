@@ -66,7 +66,7 @@ void calculate_refpos_principal_components(
         if (no_pbc == false) {
             recombine_molecule(box, m_natoms, positions);
         }
-        // calc molecule velocity and molecule com
+        // calc molecule com
         float center_of_mass[3] = {0.0, 0.0, 0.0};
         for (size_t dim = 0; dim < 3; dim++) {
             center_of_mass[dim] =
