@@ -52,7 +52,8 @@ void calculate_refpos_principal_components(
         float *positions = calloc(3 * m_natoms, sizeof(float));
         float *positions_rel = calloc(3 * m_natoms, sizeof(float));
         // next mol if not eckart frame decomposition
-        if (!(m_rot_treat == 'e' || m_rot_treat == 'p')) {
+        if (!(m_rot_treat == 'e' || m_rot_treat == 'p' || m_rot_treat == 'E' ||
+              m_rot_treat == 'P')) {
             continue;
         }
         // reading molecule positions

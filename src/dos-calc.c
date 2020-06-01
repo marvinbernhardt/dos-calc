@@ -233,7 +233,7 @@ int main(int argc, char *argv[]) {
         check_frame_orthorombic_box(frame, arguments.no_pbc);
         get_frame_pos_box(frame, natoms, refconf_pos, refconf_box);
         chfl_trajectory_close(file);
-        // get principal axis if rot_type == 'e'
+        // get principal axis
         calculate_refpos_principal_components(
             refconf_pos, refconf_box, nmols, mols_firstatom, mols_natoms,
             mols_moltypenr, moltypes_atommasses, mols_mass, moltypes_rot_treat,
