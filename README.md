@@ -8,7 +8,7 @@ Calculation of translational, rotational and vibrational density of states
 
 - CBLAS (openblas can be problematic in combination with OPENMP)
 
-- LAPACKE (Do not use 3.9! there is a [bug that causes wrong eigenvectors](https://github.com/Reference-LAPACK/lapack/issues/379). 3.8 is fine.)
+- LAPACKE (Do not use 3.9.0! there is a [bug that causes wrong eigenvectors](https://github.com/Reference-LAPACK/lapack/issues/379). 3.8, 3.9.1 are fine.)
 
 - FFTW
 
